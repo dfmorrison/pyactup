@@ -75,9 +75,6 @@ One  is
 which comes packaged with Python itself, so if you installed Python
 you should have it available.
 
-*[Note that until PyACTUp is publicly released the following instructions will not work.
-Get a copy of the tarball in some way and follow the instructions further down for installing in that way.]*
-
 Normally, assuming you are connected to the internet, to install PyACTUp you should simply have to type at the command line
 
   .. parsed-literal:: pip install pyactup
