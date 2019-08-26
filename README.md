@@ -3,8 +3,8 @@ ACT-R cognitive architecture’s Declarative Memory, suitable for
 incorporating into other Python models and applications. It is
 inspired by the ACT-UP_ cognitive modeling toolbox.
 
-Documentation of PyACTUp is available at *mumble*. The source code can
-be obtained from *mumble*.
+There is [online documentation of PyACTUp](http://halle.psy.cmu.edu/pyactup/),
+and the [sources](https://bitbucket.org/dfmorrison/pyactup/) are on Bitbucket.
 
 PyACTUp requires Python version 3.6 or later. PyACTUp also works in
 recent versions of PyPy.
@@ -59,4 +59,3 @@ PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIG
 HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
 CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
