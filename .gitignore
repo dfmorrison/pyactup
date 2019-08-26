@@ -1,0 +1,6 @@
+*.pyc
+_*
+*.egg-info
+MANIFEST
+dist
+lisp
