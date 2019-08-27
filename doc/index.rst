@@ -262,6 +262,8 @@ Both players are modeled, and attempt to chose their moves based on their expect
 the move that will be made by their opponents. The two players differ in how much of the
 prior history they consider in creating their expectations.
 
+Download the source code for the `rock, paper, scissors <http://halle.psy.cmu.edu/pyactup/examples/rps.py>`_ example.
+
 .. code-block:: python
     :linenos:
 
@@ -447,6 +449,8 @@ them, if preferred. ``Matplotlib`` is used to generate a graph of the results, a
 to display a progress indicator, as this example takes on the order of twenty seconds to run
 in CPython.
 
+Download the source code for the `safe, risky <http://halle.psy.cmu.edu/pyactup/examples/safe_risky.py>`_ example.
+
 .. code-block:: python
     :linenos:
 
@@ -495,7 +499,7 @@ The result of running this is
 
 
 
-.. [#f3] Cleotilde Gonzalez, Javier F. Lerch and Christian Lebiere (2003), 
+.. [#f3] Cleotilde Gonzalez, Javier F. Lerch and Christian Lebiere (2003),
          `Instance-based learning in dynamic decision making,
          <http://www.sciencedirect.com/science/article/pii/S0364021303000314>`_
          *Cognitive Science*, *27*, 591-635. DOI: 10.1016/S0364-0213(03)00031-4.

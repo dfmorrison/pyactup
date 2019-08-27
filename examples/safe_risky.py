@@ -36,4 +36,3 @@ plt.ylabel("fraction choosing risky")
 plt.xlabel("round")
 plt.title(f"Safe (1 always) versus risky (3 × ⅓, 0 × ⅔)\nσ={m.noise}, d={m.decay}")
 plt.show()
-
