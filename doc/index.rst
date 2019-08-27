@@ -93,15 +93,15 @@ you may have to modify the above in various ways
 * you may need to use some combination of the above
 
 If you are unable to install PyACTUp as above, you can instead
-`download a tarball <https://bitbucket.org/dfmorrison/pyactup/downloads/?tab=tags,BitBucket>`_.
-The tarball will have a filename something like PyACTUp-1.0.tar.gz.
-Assuming this file is at ``/some/directory/Pyactup-1.0.tar.gz`` install it by typing at the command line
+`download a tarball <https://bitbucket.org/dfmorrison/pyactup/downloads/?tab=downloads>`_.
+The tarball will have a filename something like pyactup-1.0.tar.gz.
+Assuming this file is at ``/some/directory/pyactup-1.0.tar.gz`` install it by typing at the command line
 
-  .. parsed-literal:: pip install /some/directory/Pyactup-1.0.tar.gz
+  .. parsed-literal:: pip install /some/directory/pyactup-1.0.tar.gz
 
 Alternatively you can untar the tarball with
 
-  .. parsed-literal:: tar -xf /some/directory/Pyactup-1.0.tar.gz
+  .. parsed-literal:: tar -xf /some/directory/pyactup-1.0.tar.gz
 
 and then change to the resulting directory and type
 
@@ -205,10 +205,10 @@ makes to the blended value
 
   .. math:: w_{i} = e^{a_{i} / \tau}
 
-If :math:`S_{i}` is the value of the slot or attribute of chunk *i* to be blended over,
+If :math:`s_{i}` is the value of the slot or attribute of chunk *i* to be blended over,
 the  blended value, *BV*, is then
 
-  .. math:: BV =\, \sum_{i \in m}{\, \frac{w_{i}}{\sum_{j \in m}{w_{j}}} \; S_{i}}
+  .. math:: BV =\, \sum_{i \in m}{\, \frac{w_{i}}{\sum_{j \in m}{w_{j}}} \; s_{i}}
 
 
 

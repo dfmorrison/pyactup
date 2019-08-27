@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0'
+__version__ = '1.0.1.dev1'
 
 import collections
 import collections.abc as abc
@@ -264,15 +264,18 @@ class Memory(dict):
     def activation_history(self):
         """A :class:`MutableSequence`, typically a :class:`list`,  into which details of the computations underlying PyACTUp operation are appended.
         If ``None``, the default, no such details are collected.
-        In addition to activation computations, details of blending operations are also
-        collected.
+        In addition to activation computations, the resulting retrieval probabilities are
+        also collected for blending operations.
         The details collected are presented as dictionaries.
+        The ``references`` entries in these dictionaries are sequences of times the
+        corresponding chunks were learned, if :attr:`optimizied_learning` is off, and
+        otherwise are counts of the number of times they have been learned.
 
         If PyACTUp is being using in a loop, the details collected will likely become
         voluminous. It is usually best to clear them frequently, such as on each
         iteration.
 
-        Attempting to set :attr:`activation_history` to anything but ``None`` or an
+        Attempting to set :attr:`activation_history` to anything but ``None`` or a
         :class:`MutableSequence` raises a :exc:`ValueError`.
 
         >>> m = Memory()
@@ -321,7 +324,7 @@ class Memory(dict):
     def optimized_learning(self):
 
         """A boolean indicating whether or not this Memory is configured to use optimized learning.
-        Cannot be set directly, and can be changed when calling :meth:`reset`.
+        Cannot be set directly, but can be changed when calling :meth:`reset`.
         """
         return self._optimized_learning
 

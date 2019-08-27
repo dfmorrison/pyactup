@@ -3,12 +3,12 @@ from pyactup import __version__
 
 DESCRIPTION = open("README.md").read()
 
-setup(name="PyACTUP",
+setup(name="pyactup",
       version=__version__,
       description="A lightweight Python implementation of a subset of the ACT-R cognitive architecture’s Declarative Memory",
       author="Don Morrison",
       author_email="dfm2@cmu.edu",
-      url="http://tbd.com/tbd",
+      url="https://bitbucket.org/dfmorrison/pyactup/",
       platforms=["any"],
       long_description=DESCRIPTION,
       long_description_content_type="text/markdown",
