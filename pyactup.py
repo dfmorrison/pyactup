@@ -556,8 +556,14 @@ class Memory(dict):
             weighted_outcomes += weight * chunk[outcome_attribute]
         if self._activation_history is not None:
             for history, w in chunk_weights:
-                history["retrieval_probability"] = w / weights
-        return weighted_outcomes / weights
+                try:
+                    history["retrieval_probability"] = w / weights
+                except ZeroDivisionError:
+                    history["retrieval_probability"] = None
+        try:
+            return weighted_outcomes / weights
+        except ZeroDivisionError:
+            return None
 
 
 @property
