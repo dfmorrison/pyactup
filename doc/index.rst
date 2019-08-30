@@ -1,4 +1,4 @@
-PyACTUp documentation
+PyACTUp version 1.0.1
 *********************
 
 .. toctree::
