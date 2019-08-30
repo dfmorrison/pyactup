@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.1.dev1'
+__version__ = '1.0.1'
 
 import collections
 import collections.abc as abc
