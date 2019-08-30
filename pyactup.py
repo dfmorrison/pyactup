@@ -524,9 +524,10 @@ class Memory(dict):
         return best_chunk
 
     def blend(self, outcome_attribute, **kwargs):
-        """Returns a blended value for the given attribute of those chunks matching *kwargs*.
-        If any matching chunk has a value of *outcome_attribute* that is not a real number
-        a :exc:`TypeError` is raised.
+        """Returns a blended value for the given attribute of those chunks matching *kwargs*, and which contains *outcome_attribute*.
+        Returns ``None`` if there are no matching chunks that contains
+        *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
+        value that is not a real number a :exc:`TypeError` is raised.
 
         >>> m = Memory()
         >>> m.learn(color="red", size=2)
@@ -543,12 +544,15 @@ class Memory(dict):
         3
         >>> m.blend("size", color="red")
         1.1548387620911693
+
         """
         weights = 0.0
         weighted_outcomes = 0.0
         if self._activation_history is not None:
             chunk_weights = []
         for chunk, activation in self._activations(kwargs):
+            if outcome_attribute not in chunk:
+                continue
             weight = math.exp(activation / self._temperature)
             if self._activation_history is not None:
                 chunk_weights.append((self._activation_history[-1], weight))
