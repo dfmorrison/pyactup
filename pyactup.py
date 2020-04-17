@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.2.dev1'
+__version__ = '1.0.2.dev2'
 
 import collections
 import collections.abc as abc
@@ -91,7 +91,11 @@ class Memory(dict):
         self.noise = noise
         self._decay = None
         self.decay = decay
-        self.temperature = temperature
+        if temperature is None and not self._validate_temperature(None, noise):
+            warn(f"A noise of {noise} and temperature of None will make the temperature too low; setting temperature to 1")
+            self.temperature = 1
+        else:
+            self.temperature = temperature
         self.threshold = threshold
         self.mismatch = mismatch
         self._activation_history = None
@@ -151,7 +155,7 @@ class Memory(dict):
         if value < 0:
             raise ValueError(f"The noise, {value}, must not be negative")
         if self._temperature_param is None:
-            t = Memory._validate_temperature(self._temperature_param, value)
+            t = Memory._validate_temperature(None, value)
             if not t:
                 warn(f"Setting noise to {value} will make the temperature too low; setting temperature to 1")
                 self.temperature = 1
@@ -165,6 +169,9 @@ class Memory(dict):
         Time in this sense is dimensionless.
         The :attr:`decay` is typically between about 0.1 and 2.0.
         The default value is 0.5. If zero memory does not decay.
+        If set to ``None`` no base level activation is computed or used; note that this is
+        significantly different than setting it to zero which causes base level activation
+        to still be computed and used, but with no decay.
         Attempting to set it to a negative number raises a :exc:`ValueError`.
         It must be less one 1 if this memory's :attr:`optimized_learning` parameter is set.
         """
@@ -172,16 +179,19 @@ class Memory(dict):
 
     @decay.setter
     def decay(self, value):
-        if value < 0:
-            raise ValueError(f"The decay, {value}, must not be negative")
-        if value < 1:
-            self._ln_1_mius_d = math.log(1 - value)
-        elif self._optimized_learning:
-            self._ln_1_mius_d = "illegal value" # ensure error it attempt to use this
-            raise ValueError(f"The decay, {value}, must be less than one if optimized_learning is True")
+        if value is not None:
+            if value < 0:
+                raise ValueError(f"The decay, {value}, must not be negative")
+            if value < 1:
+                self._ln_1_mius_d = math.log(1 - value)
+            elif self._optimized_learning:
+                self._ln_1_mius_d = "illegal value" # ensure error it attempt to use this
+                raise ValueError(f"The decay, {value}, must be less than one if optimized_learning is True")
         self._expt_cache = [None]*TRANSCENDENTAL_CACHE_SIZE
         self._ln_cache = [None]*TRANSCENDENTAL_CACHE_SIZE
         self._decay = value
+        for c in self.values():
+            c._clear_base_activation()
 
     @property
     def temperature(self):
@@ -203,7 +213,10 @@ class Memory(dict):
             value = float(value)
         t = Memory._validate_temperature(value, self._noise)
         if not t:
-            raise ValueError(f"The temperature, {value}, must not be less than {MINIMUM_TEMPERATURE}.")
+            if value is None:
+                raise ValueError(f"The noise, {self._noise}, is too low to for the temperature to be set to None.")
+            else:
+                raise ValueError(f"The temperature, {value}, must not be less than {MINIMUM_TEMPERATURE}.")
         self._temperature_param = value
         self._temperature = t
 
@@ -638,7 +651,7 @@ class Chunk(dict):
 
     def _activation(self, for_partial=False):
         # Does not include the mismatch penalty component, that's handled by the caller.
-        base = self._get_base_activation()
+        base = self._get_base_activation() if self._memory._decay is not None else 0
         noise = self._memory._make_noise()
         result = base + noise
         if self._memory._activation_history is not None:
@@ -695,6 +708,10 @@ class Chunk(dict):
                     raise e
             self._base_activation_time = self._memory.time
         return self._base_activation
+
+    def _clear_base_activation(self):
+        self._base_activation_time = None
+
 
 
 # Local variables:

@@ -54,6 +54,9 @@ def test_parameter_manipulation():
     with pytest.raises(ValueError):
         m.mismatch = -0.1
     assert m.mismatch == 0.0
+    with pytest.warns(UserWarning):
+        m = Memory(noise=0)
+    m = Memory(noise=0, temperature=0.8)
 
 def test_time():
     m = Memory()
@@ -165,6 +168,31 @@ def test_decay():
     m.decay = 2.7182818
     with pytest.raises(RuntimeError):
         m.reset(True)
+    m.reset(False)
+    m.temperature = 1
+    m.noise = 0
+    m.decay = 0
+    m.learn(foo=1)
+    m.advance(4)
+    m.learn(foo=1)
+    m.advance(7)
+    c = m.retrieve(foo=1)
+    assert isclose(c._activation(), 0.6931471805599453)
+    m.decay = None
+    assert c._activation() == 0
+    m.decay = 0.8
+    assert isclose(c._activation(), -1.0281200094565899)
+    m.reset(True)
+    m.learn(foo=1)
+    m.advance(4)
+    m.learn(foo=1)
+    m.advance(7)
+    c = m.retrieve(foo=1)
+    assert isclose(c._activation(), 0.3842688747553493)
+    m.decay = None
+    assert c._activation() == 0
+    m.decay = 0
+    assert isclose(c._activation(), 0.6931471805599453)
 
 def test_threshold():
     m = Memory()

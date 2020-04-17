@@ -146,6 +146,9 @@ the first appearance of *i*, and *n*, a count of the number of times *i* has app
 
   .. math:: B_{i} = \ln(\frac{n}{1 - d}) - d \ln(L)
 
+Note that setting the ``decay`` parameter to ``None`` disables the computation of base level
+activation. That is, the base level component of the total activation is zero in this case.
+
 Activation noise
 ~~~~~~~~~~~~~~~~
 
