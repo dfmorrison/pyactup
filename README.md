@@ -1,7 +1,7 @@
 PyACTUp is a lightweight Python implementation of a subset of the
 ACT-R cognitive architecture’s Declarative Memory, suitable for
 incorporating into other Python models and applications. It is
-inspired by the ACT-UP_ cognitive modeling toolbox.
+inspired by the ACT-UP cognitive modeling toolbox.
 
 There is [online documentation of PyACTUp](http://halle.psy.cmu.edu/pyactup/),
 and the [sources](https://bitbucket.org/dfmorrison/pyactup/) are on Bitbucket.
