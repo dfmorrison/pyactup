@@ -59,4 +59,4 @@ html_theme = 'alabaster'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-copyright = "2019, Carnegie Mellon University"
+copyright = "2018-2020, Carnegie Mellon University"
