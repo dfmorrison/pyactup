@@ -37,12 +37,13 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.2'
+__version__ = '1.0.3'
 
 import collections
 import collections.abc as abc
 import math
 import numbers
+import pylru
 import random
 import sys
 
@@ -58,6 +59,7 @@ DEFAULT_THRESHOLD = -10.0
 MINIMUM_TEMPERATURE = 0.01
 
 TRANSCENDENTAL_CACHE_SIZE = 1000
+SIMILARITY_CACHE_SIZE = 10_000
 
 class Memory(dict):
     """A cognitive entity containing a collection of learned things, its chunks.
@@ -345,27 +347,31 @@ class Memory(dict):
     _minimum_similarity = 0
     _maximum_similarity = 1
     _similarity_functions = {}
+    _similarity_cache = pylru.lrucache(SIMILARITY_CACHE_SIZE)
 
     def _similarity(self, x, y, attribute):
         if x == y:
-            return 0
+            return 0 if Memory._use_actr_similarity else 1
         fn = self._similarity_functions.get(attribute)
         if fn:
+            signature = (x, y, attribute)
+            result = self._similarity_cache.get(signature)
+            if result is not None:
+                return result
+            result = self._similarity_cache.get((y, x, attribute))
+            if result is not None:
+                return result
             result = fn(x, y)
-        else:
-            result = None
-        if result is not None:
             if result < Memory._minimum_similarity:
                 warn(f"similarity value is less than the minimum allowed, {Memory._minimum_similarity}, so that minimum value is being used instead")
                 result = Memory._minimum_similarity
             elif result > Memory._maximum_similarity:
                 warn(f"similarity value is greater than the maximum allowed, {Memory._maximum_similarity}, so that maximum value is being used instead")
                 result = Memory._maximum_similarity
-            if not Memory._use_actr_similarity:
-                result -= 1
+            self._similarity_cache[signature] = result
             return result
         else:
-            return -1
+            return -1 if Memory._use_actr_similarity else 0
 
     def learn(self, **kwargs):
         """Adds, or reinforces, a chunk in this Memory with the attributes specified by *kwargs*.
@@ -582,9 +588,7 @@ class Memory(dict):
         except ZeroDivisionError:
             return None
 
-
-@property
-def use_actr_similarity():
+def use_actr_similarity(value=None):
     """Whether to use "natural" similarity values, or traditional ACT-R ones.
     PyACTUp normally uses a "natural" representation of similarities, where two values
     being completely similar, identical, has a value of one; and being completely
@@ -592,18 +596,20 @@ def use_actr_similarity():
     positive, real numbers less than one. Traditionally ACT-R instead uses a range of
     similarities with the most dissimilar being a negative number, usually -1, and
     completely similar being zero.
-    """
-    return Memory.use_actr_similarity
 
-@use_actr_similarity.setter
-def use_actr_similarity(value):
-    if value:
-        Memory._minimum_similarity = -1
-        Memory._maximum_similarity =  0
-    else:
-        Memory._minimum_similarity =  0
-        Memory._maximum_similarity =  1
-    Memory._use_actr_similarity = bool(value)
+    If the argument is ``False`` or ``True`` is sets the ACT-R traditional behavior
+    on or off, and returns it. With no arguments it returns the current value.
+    """
+    if value is not None:
+        Memory._similarity_cache.clear()
+        if value:
+            Memory._minimum_similarity = -1
+            Memory._maximum_similarity =  0
+        else:
+            Memory._minimum_similarity =  0
+            Memory._maximum_similarity =  1
+        Memory._use_actr_similarity = bool(value)
+    return Memory._use_actr_similarity
 
 def set_similarity_function(function, *slots):
     """Assigns a similarity function to be used when comparing attribute values with the given names.
@@ -624,6 +630,7 @@ def set_similarity_function(function, *slots):
     """
     for s in slots:
         Memory._similarity_functions[s] = function
+    Memory._similarity_cache.clear()
 
 
 class Chunk(dict):

@@ -265,7 +265,37 @@ def test_learn_retrieve():
     with pytest.raises(TypeError):
         m.learn(a=[1, 2])
 
+def test_similarity():
+    def sim(x, y):
+        if y < x:
+            return sim(y, x)
+        return 1 - (y - x) / y
+    set_similarity_function(sim, "a")
+    m = Memory(mismatch=1)
+    assert len(Memory._similarity_cache) == 0
+    assert isclose(m._similarity(3, 3, "a"), 1)
+    assert isclose(m._similarity(4, 3, "b"), 0)
+    assert len(Memory._similarity_cache) == 0
+    assert isclose(m._similarity(3, 4, "a"), 0.75)
+    assert len(Memory._similarity_cache) == 1
+    set_similarity_function(lambda x, y: sim(x, y) / 3, "a")
+    assert len(Memory._similarity_cache) == 0
+    assert isclose(m._similarity(4, 3, "a"), 0.25)
+    assert len(Memory._similarity_cache) == 1
+    assert isclose(m._similarity(3, 4, "a"), 0.25)
+    assert len(Memory._similarity_cache) == 1
+    assert use_actr_similarity() == False
+    use_actr_similarity(True)
+    assert use_actr_similarity() == True
+    set_similarity_function(lambda x, y: sim(x, y) - 1, "a")
+    assert len(Memory._similarity_cache) == 0
+    assert isclose(m._similarity(3, 3, "a"), 0)
+    assert isclose(m._similarity(4, 3, "b"), -1)
+    assert isclose(m._similarity(3, 4, "a"), -0.25)
+    assert isclose(m._similarity(4, 3, "a"), -0.25)
+
 def test_retrieve_partial():
+    use_actr_similarity(False)
     def sim(x, y):
         if y < x:
             return sim(y, x)
