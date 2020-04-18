@@ -174,13 +174,15 @@ PyACTUp normally uses a "natural" representation of similarities, where two valu
 has a value of one; and being completely dissimilar has a value of zero; with various other degrees of similarity being
 positive, real numbers less than one. Traditionally ACT-R instead uses a range of
 similarities with the most dissimilar being a negative number, usually -1, and completely similar being zero.
-If preferred, PyACTUp can be configured to use these ACT-R-style similarities by setting the global
-property ``use_actr_similarity`` to ``True``, resulting in the computations below being appropriately offset.
+If preferred, PyACTUp can be configured to use these ACT-R-style similarities by calling the
+function ``use_actr_similarity`` with an argument of ``True``, resulting in the computations below being appropriately offset.
 
-How to compute the similarity of two chunks is determined by the programmer, using either the
-function ``set_similarity_function`` or the Memory method ``set_similarity``. If neither has been
-used in a way applicable to the two chunks being compared their similarity is one if they are the same
-chunk, and otherwise zero.
+The ``set_similarity_function`` defines how to compute the similarity of values for a particular attribute.
+
+.. 
+   function ``set_similarity_function`` or the Memory method ``set_similarity``. If neither has been
+   used in a way applicable to the two chunks being compared their similarity is one if they are the same
+   chunk, and otherwise zero.
 
 If the ``mismatch`` parameter has real value :math:`\mu` and the similarity of slot *k* of *i* to the desired
 value of that slot in the retrieval is :math:`S_{ik}`, the partial matching correction is
@@ -250,7 +252,7 @@ API Reference
 
 .. autofunction:: set_similarity_function
 
-.. autoattribute:: pyactup::use_actr_similarity
+.. autofunction:: use_actr_similarity
 
 
 Examples
