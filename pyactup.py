@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.3'
+__version__ = '1.0.4dev1'
 
 import collections
 import collections.abc as abc
@@ -410,11 +410,14 @@ class Memory(dict):
             chunk = Chunk(self, kwargs)
             self[signature] = chunk
             created = True
+        self._cite(chunk)
+        return created
+
+    def _cite(self, chunk):
         if self._optimized_learning:
             chunk._references += 1
         else:
             chunk._references.append(self._time)
-        return created
 
     def forget(self, when, **kwargs):
         """Undoes the operation of a previous call to :meth:`learn`.
@@ -445,13 +448,16 @@ class Memory(dict):
             del self[signature]
         return True
 
-    def retrieve(self, partial=False, **kwargs):
+    def retrieve(self, partial=False, rehearse=False, **kwargs):
         """Returns the chunk matching the *kwargs* that has the highest activation greater than this Memory's :attr:`threshold`.
         If there is no such matching chunk returns ``None``.
         Normally only retrieves chunks exactly matching the *kwargs*; if *partial* is
         ``True`` it also retrieves those only approximately matching, using similarity
         (see :func:`set_similarity_function`) and :attr:`mismatch` to determine closeness
         of match.
+
+        If *rehearse* is supplied and true it also reinforces this chunk at the current
+        time. No chunk is reinforced if retrieve returns ``None``.
 
         The returned chunk is a dictionary-like object, and its attributes can be
         extracted with Python's usual subscript notation.
@@ -468,10 +474,10 @@ class Memory(dict):
         >>> m.retrieve(color="blue")["widget"]
         'snackleizer'
         """
-        if partial:
-            return self._partial_match(kwargs)
-        else:
-            return self._exact_match(kwargs)
+        result = self._partial_match(kwargs) if partial else self._exact_match(kwargs)
+        if rehearse and result:
+            self._cite(result)
+        return result
 
     def _exact_match(self, conditions):
         # Returns a single chunk matching the given slots and values, that has the

@@ -264,6 +264,21 @@ def test_learn_retrieve():
     assert isclose(sum(m.retrieve(b="x")["a"] == 4 for i in range(1000)) / 1000, 0.71, rel_tol=0.1)
     with pytest.raises(TypeError):
         m.learn(a=[1, 2])
+    m.reset()
+    m.learn(color="red", size=1)
+    m.advance()
+    m.learn(color="blue", size=1)
+    m.advance()
+    m.learn(color="red", size=2)
+    m.advance(100)
+    m.learn(color="red", size=1)
+    m.advance()
+    m.learn(color="red", size=1)
+    m.advance()
+    assert sum(m.retrieve(color="red")["size"] == 1 for i in range(100)) > 95
+    m.retrieve(rehearse=True, size=2)
+    m.advance()
+    assert sum(m.retrieve(color="red")["size"] == 1 for i in range(100)) < 95
 
 def test_similarity():
     def sim(x, y):
