@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.4dev1'
+__version__ = '1.0.4'
 
 import collections
 import collections.abc as abc
@@ -337,9 +337,14 @@ class Memory(dict):
 
     @property
     def optimized_learning(self):
-
         """A boolean indicating whether or not this Memory is configured to use optimized learning.
         Cannot be set directly, but can be changed when calling :meth:`reset`.
+
+        .. warning::
+            Care should be taken when using optimized learning as operations such as
+            ``retrieve`` that depend upon activation will not longer raise an exception if
+            they are called when ``advance`` has not been called after ``learn``, possibly
+            producing biologically implausible results.
         """
         return self._optimized_learning
 
@@ -418,6 +423,7 @@ class Memory(dict):
             chunk._references += 1
         else:
             chunk._references.append(self._time)
+        chunk._base_activation_time = None
 
     def forget(self, when, **kwargs):
         """Undoes the operation of a previous call to :meth:`learn`.
@@ -717,6 +723,9 @@ class Chunk(dict):
             except ValueError as e:
                 if self._memory._time <= self._creation:
                     raise RuntimeError("Can't compute activation of a chunk at or before the time it was created")
+                elif (not self._memory._optimized_learning
+                      and self._references[-1] >= self._memory._time):
+                    raise RuntimeError("Can't compute activation of a chunk at or before the time of its most recent reference")
                 else:
                     raise e
             self._base_activation_time = self._memory.time

@@ -279,6 +279,9 @@ def test_learn_retrieve():
     m.retrieve(rehearse=True, size=2)
     m.advance()
     assert sum(m.retrieve(color="red")["size"] == 1 for i in range(100)) < 95
+    m.learn(color="red", size=1)
+    with pytest.raises(RuntimeError):
+        m.retrieve(color="red")
 
 def test_similarity():
     def sim(x, y):
