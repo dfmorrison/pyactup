@@ -17,6 +17,8 @@ def test_parameter_manipulation():
     assert isclose(m._temperature, 0.3535534, rel_tol=0.0001)
     assert m.threshold == -10.0
     assert m.mismatch is None
+    assert m.learning_time_increment == 1
+    assert m.retrieval_time_increment == 0
     assert m.optimized_learning == False
     m.temperature = False
     assert m.temperature is None
@@ -26,21 +28,32 @@ def test_parameter_manipulation():
     m.temperature = 0.7
     m.threshold = -8
     m.mismatch = 1
+    m.learning_time_increment = 0
+    m.retrieval_time_increment = 0.050
     assert m.noise == 0.35
     assert m.decay == 0.6
     assert m.temperature == 0.7
     assert m._temperature == 0.7
     assert m.threshold == -8
     assert m.mismatch == 1.0
+    assert m.learning_time_increment == 0
+    assert m.retrieval_time_increment == 0.050
     assert m.optimized_learning == False
-    m = Memory(0.15, 0.4, 1.1, -9, 0, 1)
+    assert m.optimized_learning == False
+    m = Memory(0.15, 0.4, 1.1, -9, 0, 2.1, 0.1, 1)
     assert m.noise == 0.15
     assert m.decay == 0.4
     assert m.temperature == 1.1
     assert m._temperature == 1.1
     assert m.threshold == -9
     assert m.mismatch == 0.0
+    assert m.learning_time_increment == 2.1
+    assert m.retrieval_time_increment == 0.1
     assert m.optimized_learning == True
+    m.learning_time_increment = None
+    m.retrieval_time_increment = None
+    assert m.learning_time_increment == 0
+    assert m.retrieval_time_increment == 0
     with pytest.raises(ValueError):
         m.temperature = 0
     assert m.temperature == 1.1
@@ -54,6 +67,10 @@ def test_parameter_manipulation():
     with pytest.raises(ValueError):
         m.mismatch = -0.1
     assert m.mismatch == 0.0
+    with pytest.raises(ValueError):
+        m.learning_time_increment = -0.0001
+    with pytest.raises(ValueError):
+        m.retrieval_time_increment = -0.0001
     with pytest.warns(UserWarning):
         m = Memory(noise=0)
     m = Memory(noise=0, temperature=0.8)
@@ -68,9 +85,30 @@ def test_time():
     with pytest.raises(ValueError):
         m.advance(-0.001)
     assert isclose(m.time, 13.5)
+    m.reset()
+    m.learn(foo=1)
+    assert m.time == 1
+    m.learn(foo=2, advance=2)
+    assert m.time == 3
+    m.learn(foo=3, advance=0)
+    assert m.time == 3
+    m.retrieve(advance=7, foo=3)
+    assert m.time == 10
+    m.retrieve(foo=3)
+    assert m.time == 10
+    m.blend("foo", advance=1)
+    assert m.time == 11
+    with pytest.raises(ValueError):
+        m.learn(foo=9, advance=-0.1)
+    with pytest.raises(ValueError):
+        m.retrieve(foo=9, advance=-10)
+    with pytest.raises(ValueError):
+        m.retrieve(partial=True, foo=9, advance=-10)
+    with pytest.raises(ValueError):
+        m.blend("foo", advance=-11)
 
 def test_reset():
-    m = Memory()
+    m = Memory(learning_time_increment=0)
     assert m.optimized_learning == False
     assert m.time == 0
     m.learn(species="African Swallow", range="400")
@@ -173,8 +211,9 @@ def test_decay():
     m.noise = 0
     m.decay = 0
     m.learn(foo=1)
-    m.advance(4)
-    m.learn(foo=1)
+    m.advance(3)
+    assert m.time == 4
+    m.learn(foo=1, advance=0)
     m.advance(7)
     c = m.retrieve(foo=1)
     assert isclose(c._activation(), 0.6931471805599453)
@@ -183,8 +222,9 @@ def test_decay():
     m.decay = 0.8
     assert isclose(c._activation(), -1.0281200094565899)
     m.reset(True)
-    m.learn(foo=1)
+    m.learn(foo=1, advance=0)
     m.advance(4)
+    m.learning_time_increment = 0
     m.learn(foo=1)
     m.advance(7)
     c = m.retrieve(foo=1)
@@ -221,7 +261,6 @@ def test_mismatch():
 def test_cached_expt():
     m = Memory()
     m.learn(a=1)
-    m.advance()
     c = m.retrieve(a=1)
     for d in (0.123, 0.432, 0.897):
         m.decay = d
@@ -249,7 +288,7 @@ def test_cached_ln():
         assert isclose(c._cached_ln(7), math.log(7))
 
 def test_learn_retrieve():
-    m = Memory()
+    m = Memory(learning_time_increment=0)
     m.learn(a=1, b="x")
     m.learn(a=2, b="y")
     m.learn(a=3, b="z")
@@ -319,7 +358,7 @@ def test_retrieve_partial():
             return sim(y, x)
         return 1 - (y - x) / y
     set_similarity_function(sim, "a")
-    m = Memory(mismatch=1)
+    m = Memory(mismatch=1, learning_time_increment=0)
     m.learn(a=1, b="x")
     m.learn(a=2, b="y")
     m.learn(a=3, b="z")
@@ -329,7 +368,7 @@ def test_retrieve_partial():
     assert m.retrieve(True, a=3.1)["b"] == "x"
 
 def test_blend():
-    m = Memory(temperature=1, noise=0)
+    m = Memory(temperature=1, noise=0, learning_time_increment=0)
     m.learn(a=1, b=1)
     m.learn(a=2, b=2)
     m.advance()

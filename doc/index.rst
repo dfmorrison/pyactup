@@ -1,4 +1,4 @@
-PyACTUp version 1.0.4
+PyACTUp version 1.0.5
 *********************
 
 .. toctree::
@@ -20,7 +20,8 @@ retrieves these chunks or values derived from them at later times. A chunk, a le
 slots or attributes, describing what is learned. Retrievals are driven by matching on the values of these
 attributes. Each Memory object also has a notion of time, a non-negative, real number that is advanced as
 the Memory object is used. Time in PyACTUp is a dimensionless quantity whose interpretation depends upon
-the model or system in which PyACTUp is being used.
+the model or system in which PyACTUp is being used. Note that the likelihood of retrievals does not depend
+upon the actual scale of time used, only on the ratios of the various values.
 There are also several parameters
 controlling these retrievals that can be configured in a Memory object, and detailed information can
 be extracted from it describing the process it uses in making these retrievals.
@@ -243,6 +244,12 @@ API Reference
    .. autoattribute:: temperature
 
    .. autoattribute:: mismatch
+
+   .. autoattribute:: threshold
+
+   .. autoattribute:: learning_time_increment
+
+   .. autoattribute:: retrieval_time_increment
 
    .. autoattribute:: optimized_learning
 

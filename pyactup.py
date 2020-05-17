@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.5dev1'
+__version__ = '1.0.5'
 
 import collections
 import collections.abc as abc
@@ -55,6 +55,8 @@ __all__ = ("Memory", "set_similarity_function", "use_actr_similarity")
 DEFAULT_NOISE = 0.25
 DEFAULT_DECAY = 0.5
 DEFAULT_THRESHOLD = -10.0
+DEFAULT_LEARNING_TIME_INCREMENT = 1
+DEFAULT_RETRIEVAL_TIME_INCREMENT = 0
 
 MINIMUM_TEMPERATURE = 0.01
 
@@ -69,10 +71,12 @@ class Memory(dict):
     The number of distinct chunks a Memory contains can be determined with Python's
     usual :func:`len` function.
 
-    A Memory has several parameters controlling its behavior: :attr:`noise`, :attr:`decay`,
-    :attr:`temperature`, :attr:`threshold`, :attr:`mismatch` and :attr:`optimized_learning`.
-    All can be queried, and most set, as properties on the Memory object. When creating
-    a Memory object their initial values can be supplied as parameters.
+    A Memory has several parameters controlling its behavior: :attr:`noise`,
+    :attr:`decay`, :attr:`temperature`, :attr:`threshold`, :attr:`mismatch`,
+    :attr:`learning_time_increment`, attr:`retrieval_time_increment` and
+    :attr:`optimized_learning`. All can be queried, and most set, as properties on the
+    Memory object. When creating a Memory object their initial values can be supplied as
+    parameters.
 
     A Memory object can be serialized with
     `pickle <https://docs.python.org/3.6/library/pickle.html>`_, allowing Memory objects
@@ -80,6 +84,7 @@ class Memory(dict):
 
     If, when creating a ``Memory`` object, any of *noise*, *decay* or *mismatch* are
     negative, or if *temperature* is less than 0.01, a :exc:`ValueError` is raised.
+
     """
 
     def __init__(self,
@@ -88,6 +93,8 @@ class Memory(dict):
                  temperature=None,
                  threshold=DEFAULT_THRESHOLD,
                  mismatch=None,
+                 learning_time_increment=DEFAULT_LEARNING_TIME_INCREMENT,
+                 retrieval_time_increment=DEFAULT_RETRIEVAL_TIME_INCREMENT,
                  optimized_learning=False):
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
         self.noise = noise
@@ -100,6 +107,8 @@ class Memory(dict):
             self.temperature = temperature
         self.threshold = threshold
         self.mismatch = mismatch
+        self._learning_time_increment = learning_time_increment
+        self._retrieval_time_increment = retrieval_time_increment
         self._activation_history = None
         self.reset(bool(optimized_learning))
 
@@ -123,6 +132,14 @@ class Memory(dict):
         if optimized_learning is not None:
             self._optimized_learning = bool(optimized_learning)
 
+    @property
+    def time(self):
+        """This Memory's current time.
+        Time in PyACTUp is a dimensionless quantity, the interpretation of which is at the
+        discretion of the modeler.
+        """
+        return self._time
+
     def advance(self, amount=1):
         """Adds the given *amount* to this Memory's time, and returns the new, current time.
         Raises a :exc:`ValueError` if *amount* is negative, or not a real number.
@@ -133,12 +150,34 @@ class Memory(dict):
         return self._time
 
     @property
-    def time(self):
-        """This Memory's current time.
-        Time in PyACTUp is a dimensionless quantity, the interpretation of which is at the
-        discretion of the modeler.
-        """
-        return self._time
+    def learning_time_increment(self):
+        """The default amount of time to :meth:`advance` by after performing a learn
+        operation. By default this is ``1``. Attempting  to set this to a negative value
+        raises a :exc:`ValueError`."""
+        return self._learning_time_increment
+
+    @learning_time_increment.setter
+    def learning_time_increment(self, value):
+        if value is None:
+            value = 0
+        if value < 0:
+            raise ValueError(f"The learning_time_increment cannot be negative ({value})")
+        self._learning_time_increment = value
+
+    @property
+    def retrieval_time_increment(self):
+        """The default amount of time to :meth:`advance` by before performing a retrieval
+        or blending operation. By default this is zero. Attempting to set this to a
+        negative values raise a :exc:`ValueError`."""
+        return self._retrieval_time_increment
+
+    @retrieval_time_increment.setter
+    def retrieval_time_increment(self, value):
+        if value is None:
+            value = 0
+        if value < 0:
+            raise ValueError(f"The retrieval_time_increment cannot be negative ({value})")
+        self._retrieval_time_increment = value
 
     @property
     def noise(self):
@@ -240,6 +279,11 @@ class Memory(dict):
         The default value is ``-10``.
         Attempting to set the ``threshold`` to a value that is neither ``None`` nor a
         real number raises a :exc:`ValueError`.
+
+        While for the likelihoods of retrieval the values of attr:`time` are normally
+        scale free, not depending upon the magnitudes of attr:`time`, but rather the
+        ratios of various times, the attr:`threshold` is sensitive to the actual
+        magnitude. Suitable care should be exercised when adjusting it.
         """
         if self._threshold == -sys.float_info.max:
             return None
@@ -378,18 +422,24 @@ class Memory(dict):
         else:
             return -1 if Memory._use_actr_similarity else 0
 
-    def learn(self, **kwargs):
+    def learn(self, advance=None, **kwargs):
         """Adds, or reinforces, a chunk in this Memory with the attributes specified by *kwargs*.
         The attributes, or slots, of a chunk are described using Python keyword arguments.
         The attribute names must conform to the usual Python variable name syntax, and may
-        not be Python keywords. Their values must be :class:`Hashable`.
+        be neither Python keywords nor the names of optional arguments to :meth:`learn`,
+        :meth:`retrieve` or :meth:`blend`: *partial*, *reheard* or *advance*. Their
+        values must be :class:`Hashable`.
 
         Returns ``True`` if a new chunk has been created, and ``False`` if instead an
         already existing chunk has been re-experienced and thus reinforced.
 
-        Note that time must be advanced by the programmer with :meth:`advance` following
-        any calls to ``learn`` before calling :meth:`retrieve` or :meth:`blend`. Otherwise
-        the chunk learned at this time would have infinite activation.
+        After learning the relevant chunk, :meth:`advance` is called with an argument of
+        *advance*. If *advance* has not been supplied it defaults to the current value of
+        :attr:`learning_time_increment`; unless this has been changed by the programmer
+        this default value is ``1``. If this *advance* is zero then time must be advanced
+        by the programmer with :meth:`advance` following any calls to ``learn`` before
+        calling :meth:`retrieve` or :meth:`blend`. Otherwise the chunk learned at this
+        time would have infinite activation.
 
         Raises a :exc:`TypeError` if an attempt is made to learn an attribute value that
         is not :class:`Hashable`.
@@ -405,6 +455,7 @@ class Memory(dict):
         1
         >>> m.retrieve(color="red")
         <Chunk 0000 {'color': 'red', 'size': 4}>
+
         """
         if not kwargs:
             raise ValueError(f"No attributes to learn")
@@ -416,7 +467,13 @@ class Memory(dict):
             self[signature] = chunk
             created = True
         self._cite(chunk)
+        self._advance(advance, self._learning_time_increment)
         return created
+
+    def _advance(self, argument, default):
+        old = self._time
+        self.advance(argument if argument is not None else default)
+        return old
 
     def _cite(self, chunk):
         if self._optimized_learning:
@@ -454,13 +511,19 @@ class Memory(dict):
             del self[signature]
         return True
 
-    def retrieve(self, partial=False, rehearse=False, **kwargs):
+    def retrieve(self, partial=False, rehearse=False, advance=None, **kwargs):
         """Returns the chunk matching the *kwargs* that has the highest activation greater than this Memory's :attr:`threshold`.
         If there is no such matching chunk returns ``None``.
         Normally only retrieves chunks exactly matching the *kwargs*; if *partial* is
         ``True`` it also retrieves those only approximately matching, using similarity
         (see :func:`set_similarity_function`) and :attr:`mismatch` to determine closeness
         of match.
+
+        Before performing the retrieval :meth:`advance` is called with the value of
+        *advance* as its argument. If *advance* is not supplied the current value of
+        attr:`retrieval_time_increment` is used; unless changed by the programmer this
+        default value is zero. The advance of time does not occur if an error is raised
+        when attempting to perform the retrieval.
 
         If *rehearse* is supplied and true it also reinforces this chunk at the current
         time. No chunk is reinforced if retrieve returns ``None``.
@@ -480,10 +543,18 @@ class Memory(dict):
         >>> m.retrieve(color="blue")["widget"]
         'snackleizer'
         """
-        result = self._partial_match(kwargs) if partial else self._exact_match(kwargs)
-        if rehearse and result:
-            self._cite(result)
-        return result
+        old = self._advance(advance, self._retrieval_time_increment)
+        try:
+            result = self._partial_match(kwargs) if partial else self._exact_match(kwargs)
+            if rehearse and result:
+                self._cite(result)
+            old = None
+            return result
+        finally:
+            if old is not None:
+                # don't advance if there's an error or for some other reason we don't
+                # finish normally
+                self._time = old
 
     def _exact_match(self, conditions):
         # Returns a single chunk matching the given slots and values, that has the
@@ -554,11 +625,17 @@ class Memory(dict):
                 best_activation = activation
         return best_chunk
 
-    def blend(self, outcome_attribute, **kwargs):
+    def blend(self, outcome_attribute, advance=None, **kwargs):
         """Returns a blended value for the given attribute of those chunks matching *kwargs*, and which contains *outcome_attribute*.
         Returns ``None`` if there are no matching chunks that contains
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
         value that is not a real number a :exc:`TypeError` is raised.
+
+        Before performing the blending operation  :meth:`advance` is called with the value
+        of *advance* as its argument. If *advance* is not supplied the current value of
+        attr:`retrieval_time_increment` is used; unless changed by the programmer this
+        default value is zero. The advance of time does not occur if an error is raised
+        when attempting to perform the blending operation.
 
         >>> m = Memory()
         >>> m.learn(color="red", size=2)
@@ -577,28 +654,37 @@ class Memory(dict):
         1.1548387620911693
 
         """
-        weights = 0.0
-        weighted_outcomes = 0.0
-        if self._activation_history is not None:
-            chunk_weights = []
-        for chunk, activation in self._activations(kwargs):
-            if outcome_attribute not in chunk:
-                continue
-            weight = math.exp(activation / self._temperature)
-            if self._activation_history is not None:
-                chunk_weights.append((self._activation_history[-1], weight))
-            weights += weight
-            weighted_outcomes += weight * chunk[outcome_attribute]
-        if self._activation_history is not None:
-            for history, w in chunk_weights:
-                try:
-                    history["retrieval_probability"] = w / weights
-                except ZeroDivisionError:
-                    history["retrieval_probability"] = None
+        old = self._advance(advance, self._retrieval_time_increment)
         try:
-            return weighted_outcomes / weights
-        except ZeroDivisionError:
-            return None
+            weights = 0.0
+            weighted_outcomes = 0.0
+            if self._activation_history is not None:
+                chunk_weights = []
+            for chunk, activation in self._activations(kwargs):
+                if outcome_attribute not in chunk:
+                    continue
+                weight = math.exp(activation / self._temperature)
+                if self._activation_history is not None:
+                    chunk_weights.append((self._activation_history[-1], weight))
+                weights += weight
+                weighted_outcomes += weight * chunk[outcome_attribute]
+            if self._activation_history is not None:
+                for history, w in chunk_weights:
+                    try:
+                        history["retrieval_probability"] = w / weights
+                    except ZeroDivisionError:
+                        history["retrieval_probability"] = None
+            try:
+                result = weighted_outcomes / weights
+                old = None
+                return result
+            except ZeroDivisionError:
+                return None
+        finally:
+            if old is not None:
+                # don't advance if there's an error or for some other reason we don't
+                # finish normally
+                self._time = old
 
 def use_actr_similarity(value=None):
     """Whether to use "natural" similarity values, or traditional ACT-R ones.
