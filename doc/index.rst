@@ -109,6 +109,12 @@ and then change to the resulting directory and type
   .. parsed-literal:: python setup.py install
 
 
+Mailing List
+============
+
+There is a `mailing list <https://lists.andrew.cmu.edu/mailman/listinfo/pyactup-users>`_ for those interested in PyACTUp and its development.
+
+
 Background
 ==========
 
