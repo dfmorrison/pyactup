@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.5'
+__version__ = '1.0.6'
 
 import collections
 import collections.abc as abc
@@ -99,6 +99,7 @@ class Memory(dict):
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
         self.noise = noise
         self._decay = None
+        self._optimized_learning = False
         self.decay = decay
         if temperature is None and not self._validate_temperature(None, noise):
             warn(f"A noise of {noise} and temperature of None will make the temperature too low; setting temperature to 1")

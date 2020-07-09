@@ -73,6 +73,9 @@ def test_parameter_manipulation():
         m.retrieval_time_increment = -0.0001
     with pytest.warns(UserWarning):
         m = Memory(noise=0)
+    m = Memory(decay=5)
+    with pytest.raises(RuntimeError):
+        m = Memory(decay=5, optimized_learning=True)
     m = Memory(noise=0, temperature=0.8)
 
 def test_time():
