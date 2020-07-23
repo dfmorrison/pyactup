@@ -349,10 +349,10 @@ def test_similarity():
     assert use_actr_similarity() == True
     set_similarity_function(lambda x, y: sim(x, y) - 1, "a")
     assert len(Memory._similarity_cache) == 0
-    assert isclose(m._similarity(3, 3, "a"), 0)
-    assert isclose(m._similarity(4, 3, "b"), -1)
-    assert isclose(m._similarity(3, 4, "a"), -0.25)
-    assert isclose(m._similarity(4, 3, "a"), -0.25)
+    assert isclose(m._similarity(3, 3, "a"), 1)
+    assert isclose(m._similarity(4, 3, "b"), 0)
+    assert isclose(m._similarity(3, 4, "a"), 0.75)
+    assert isclose(m._similarity(4, 3, "a"), 0.75)
 
 def test_retrieve_partial():
     use_actr_similarity(False)
@@ -360,15 +360,26 @@ def test_retrieve_partial():
         if y < x:
             return sim(y, x)
         return 1 - (y - x) / y
+    def sim2(x, y):
+        return sim(x, y) - 1
     set_similarity_function(sim, "a")
-    m = Memory(mismatch=1, learning_time_increment=0)
+    m = Memory(mismatch=1, noise=0, temperature=1, learning_time_increment=0)
     m.learn(a=1, b="x")
     m.learn(a=2, b="y")
     m.learn(a=3, b="z")
     m.learn(a=4, b="x")
     m.advance()
     assert m.retrieve(a=2.9) is None
-    assert m.retrieve(True, a=3.1)["b"] == "x"
+    assert m.retrieve(True, a=3.5)["b"] == "x"
+    assert m.retrieve(True, a=3.1)["b"] == "z"
+    assert m.retrieve(True, a=2.4)["b"] == "y"
+    use_actr_similarity(True)
+    set_similarity_function(sim2, "a")
+    assert m.retrieve(a=2.9) is None
+    assert m.retrieve(True, a=3.5)["b"] == "x"
+    assert m.retrieve(True, a=3.1)["b"] == "z"
+    assert m.retrieve(True, a=2.4)["b"] == "y"
+    use_actr_similarity(False)
 
 def test_blend():
     m = Memory(temperature=1, noise=0, learning_time_increment=0)

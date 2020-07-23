@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.7dev1'
+__version__ = '1.0.7'
 
 import collections
 import collections.abc as abc
@@ -400,8 +400,9 @@ class Memory(dict):
     _similarity_cache = pylru.lrucache(SIMILARITY_CACHE_SIZE)
 
     def _similarity(self, x, y, attribute):
+        # always returns the "natural" similarity
         if x == y:
-            return 0 if Memory._use_actr_similarity else 1
+            return 1
         fn = self._similarity_functions.get(attribute)
         if fn:
             signature = (x, y, attribute)
@@ -418,10 +419,12 @@ class Memory(dict):
             elif result > Memory._maximum_similarity:
                 warn(f"similarity value is greater than the maximum allowed, {Memory._maximum_similarity}, so that maximum value is being used instead")
                 result = Memory._maximum_similarity
+            if Memory._use_actr_similarity:
+                result += 1
             self._similarity_cache[signature] = result
             return result
         else:
-            return -1 if Memory._use_actr_similarity else 0
+            return 0
 
     def learn(self, advance=None, **kwargs):
         """Adds, or reinforces, a chunk in this Memory with the attributes specified by *kwargs*.
@@ -598,8 +601,9 @@ class Memory(dict):
                 if self._conditions.keys() <= chunk.keys(): # subset
                     if self._memory._mismatch is not None:
                         activation = chunk._activation(True)
-                        mismatch = self._memory._mismatch * sum(self._memory._similarity(c, chunk[s], s)
-                                                                for s, c in self._conditions.items())
+                        mismatch = (self._memory._mismatch
+                                    * sum(self._memory._similarity(c, chunk[s], s) - 1
+                                          for s, c in self._conditions.items()))
                         total = activation + mismatch
                         if self._memory._activation_history is not None:
                             history = self._memory._activation_history[-1]
@@ -618,13 +622,15 @@ class Memory(dict):
         return self._Activations(self, conditions)
 
     def _partial_match(self, conditions):
-        best_chunk = None
+        best_chunks = []
         best_activation = self._threshold
         for chunk, activation in self._activations(conditions):
-            if activation >= self._threshold:
-                best_chunk = chunk
+            if activation > best_activation:
+                best_chunks = [chunk]
                 best_activation = activation
-        return best_chunk
+            elif activation == best_activation:
+                best_chunks.add(chunk)
+        return random.choice(best_chunks) if best_chunks else None
 
     def blend(self, outcome_attribute, advance=None, **kwargs):
         """Returns a blended value for the given attribute of those chunks matching *kwargs*, and which contains *outcome_attribute*.
