@@ -1,4 +1,4 @@
-PyACTUp version 1.0.5
+PyACTUp version 1.0.8
 *********************
 
 .. toctree::
@@ -236,6 +236,8 @@ API Reference
    .. automethod:: retrieve
 
    .. automethod:: blend
+
+   .. automethod:: best_blend
 
    .. automethod:: reset
 
@@ -487,22 +489,17 @@ Download the source code for the `safe, risky <http://halle.psy.cmu.edu/pyactup/
     for p in tqdm(range(PARTICIPANTS)):
         m.reset()
         # prepopulate some instances to ensure initial exploration
-        m.learn(choice="safe", outcome=1)
-        m.learn(choice="risky", outcome=0)
-        m.learn(choice="risky", outcome=2)
+        for c, o in (("safe", 1), ("risky", 0), ("risky", 2)):
+            m.learn(choice=c, outcome=o, advance=0)
         m.advance()
         for r in range(ROUNDS):
-            safe_bv = m.blend("outcome", choice="safe")
-            risky_bv = m.blend("outcome", choice="risky")
-            if risky_bv > safe_bv or (risky_bv == safe_bv and random.random() < 0.5):
-                choice = "risky"
+            choice, bv = m.best_blend("outcome", ("safe", "risky"), "choice")
+            if choice == "risky":
                 payoff = 3 if random.random() < 1/3 else 0
                 risky_chosen[r] += 1
             else:
-                choice = "safe"
                 payoff = 1
             m.learn(choice=choice, outcome=payoff)
-            m.advance()
 
     plt.plot(range(ROUNDS), [ v / PARTICIPANTS for v in risky_chosen])
     plt.ylim([0, 1])

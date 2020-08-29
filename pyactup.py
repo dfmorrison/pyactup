@@ -37,12 +37,13 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = '1.0.7'
+__version__ = "1.0.8"
 
 import collections
 import collections.abc as abc
 import math
 import numbers
+import operator
 import pylru
 import random
 import sys
@@ -341,12 +342,8 @@ class Memory(dict):
         >>> m = Memory()
         >>> m.learn(color="red", size=3)
         True
-        >>> m.advance()
-        1
         >>> m.learn(color="red", size=5)
         True
-        >>> m.advance()
-        2
         >>> m.activation_history = []
         >>> m.blend("size", color="red")
         4.483378114110536
@@ -455,8 +452,6 @@ class Memory(dict):
         True
         >>> m.learn(color="red", size=4)
         False
-        >>> m.advance()
-        1
         >>> m.retrieve(color="red")
         <Chunk 0000 {'color': 'red', 'size': 4}>
 
@@ -524,8 +519,8 @@ class Memory(dict):
         of match.
 
         Before performing the retrieval :meth:`advance` is called with the value of
-        *advance* as its argument. If *advance* is not supplied the current value of
-        attr:`retrieval_time_increment` is used; unless changed by the programmer this
+        *advance* as its argument. If *advance* is not supplied the current value
+        of :attr:`retrieval_time_increment` is used; unless changed by the programmer this
         default value is zero. The advance of time does not occur if an error is raised
         when attempting to perform the retrieval.
 
@@ -538,12 +533,8 @@ class Memory(dict):
         >>> m = Memory()
         >>> m.learn(widget="thromdibulator", color="red", size=2)
         True
-        >>> m.advance()
-        1
         >>> m.learn(widget="snackleizer", color="blue", size=1)
         True
-        >>> m.advance()
-        2
         >>> m.retrieve(color="blue")["widget"]
         'snackleizer'
         """
@@ -638,28 +629,21 @@ class Memory(dict):
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
         value that is not a real number a :exc:`TypeError` is raised.
 
-        Before performing the blending operation  :meth:`advance` is called with the value
-        of *advance* as its argument. If *advance* is not supplied the current value of
-        attr:`retrieval_time_increment` is used; unless changed by the programmer this
+        Before performing the blending operation :meth:`advance` is called with the value
+        of *advance* as its argument. If *advance* is not supplied the current value
+        of :attr:`retrieval_time_increment` is used; unless changed by the programmer this
         default value is zero. The advance of time does not occur if an error is raised
         when attempting to perform the blending operation.
 
         >>> m = Memory()
         >>> m.learn(color="red", size=2)
         True
-        >>> m.advance()
-        1
         >>> m.learn(color="blue", size=30)
         True
-        >>> m.advance()
-        2
         >>> m.learn(color="red", size=1)
         True
-        >>> m.advance()
-        3
         >>> m.blend("size", color="red")
         1.1548387620911693
-
         """
         old = self._advance(advance, self._retrieval_time_increment)
         try:
@@ -692,6 +676,82 @@ class Memory(dict):
                 # don't advance if there's an error or for some other reason we don't
                 # finish normally
                 self._time = old
+
+    def best_blend(self, outcome_attribute, iterable, select_attribute=None, advance=None, minimize=False):
+        """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
+        The extreme value is normally the maximum, but can be made the minimum by setting
+        *minimize* to True. The values returned by *iterable* should be dictionary-like
+        objects that can be passed as the *kwargs* argument to :meth:`blend`. The first
+        return value is the *kwargs* value producing the best blended value, and second is
+        that blended value. If there is a tie, with two or more *kwargs* values all
+        producing the same, best blended value, then one of them is chosen randomly. If
+        none of the values from *iterable* result in blended values of *outcome_attribute*
+        then both return values are ``None``.
+
+        This operation is particularly useful for building Instance Based Learning models.
+
+        For the common case where *iterable* iterates over only the values of a single
+        slot the *select_attribute* parameter may be used to simplify the iteration. If
+        *select_attribute* is supplied and is not ``None`` then *iterable* should produce
+        values of that slot instead of dictionary-like objects. Similarly the first return
+        value will be the slot value rather than a dictionary-like object. The end of the
+        example below demonstrates this.
+
+        Before performing the blending operations :meth:`advance` is called, only once,
+        with the value of *advance* as its argument. If *advance* is not supplied the
+        current value of :attr:`retrieval_time_increment` is used; unless changed by the
+        programmer this default value is zero. The advance of time does not occur if an
+        error is raised when attempting to perform a blending operation.
+
+        >>> m = Memory()
+        >>> m.learn(color="red", utility=1)
+        True
+        >>> m.learn(color="blue", utility=2)
+        True
+        >>> m.learn(color="red", utility=1.8)
+        True
+        >>> m.learn(color="blue", utility=0.9)
+        True
+        >>> m.best_blend("utility", ({"color": c} for c in ("red", "blue")))
+        ({'color': 'blue'}, 1.4868)
+        >>> m.learn(color="blue", utility=-1)
+        True
+        >>> m.best_blend("utility", ("red", "blue"), "color")
+        ('red', 1.2127)
+
+        """
+        comparator = operator.gt if not minimize else operator.lt
+        old = self._advance(advance, self._retrieval_time_increment)
+        try:
+            best_value = -math.inf if not minimize else math.inf
+            best_args = []
+            for thing in iterable:
+                if select_attribute is not None:
+                    kwargs = { select_attribute : thing }
+                else:
+                    kwargs = thing
+                value = self.blend(outcome_attribute, advance=0, **kwargs)
+                if value is None:
+                    pass
+                elif value == best_value:
+                    best_args.append(kwargs)
+                elif comparator(value, best_value):
+                    best_args = [ kwargs ]
+                    best_value = value
+            old = None
+            if best_args:
+                result = random.choice(best_args)
+                if select_attribute is not None:
+                    result = result[select_attribute]
+                return result, best_value
+            else:
+                return None, None
+        finally:
+            if old is not None:
+                # Don't advance if there's an error or for some other reason we don't
+                # finish normally
+                self._time = old
+
 
 def use_actr_similarity(value=None):
     """Whether to use "natural" similarity values, or traditional ACT-R ones.

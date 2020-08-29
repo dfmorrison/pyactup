@@ -412,3 +412,61 @@ def test_blend():
     m.advance()
     with pytest.raises(TypeError):
         m.blend("a", b=1)
+
+def test_best_blend():
+    m = Memory(temperature=1, noise=0, learning_time_increment=1)
+    m.learn(u=0, x="a", y=1)
+    m.learn(u=1, x="b", y=2)
+    m.learn(u=-1, x="a", y=2)
+    m.learn(u=0.5, x="b", y=1)
+    m.learn(u=1, x="a", y=1)
+    m.learn(u=-0.2, x="b", y=1)
+    a, v = m.best_blend("u", ({"x": x} for x in "ab"))
+    assert a["x"] == "b"
+    assert isclose(v, 0.26469341839060034)
+    a, v = m.best_blend("u", ("a", "b"), "x")
+    assert a == "b"
+    assert isclose(v, 0.26469341839060034)
+    a, v = m.best_blend("u", ({"x": x, "y": y} for x in "ab" for y in range(1, 3)))
+    assert a["x"] == "b"
+    assert a["y"] == 2
+    assert isclose(v, 1.0)
+    a, v = m.best_blend("u", ({"x": x, "y": y} for x in "ab" for y in range(1, 4)))
+    assert a["x"] == "b"
+    assert a["y"] == 2
+    assert isclose(v, 1.0)
+    a, v = m.best_blend("u", ({"x": x, "y": y} for x in "ab" for y in range(1, 2)))
+    assert a["x"] == "a"
+    assert a["y"] == 1
+    assert isclose(v, 0.6339745962155614)
+    a, v = m.best_blend("u", "ab", select_attribute="x", minimize=True)
+    assert a == "a"
+    assert isclose(v, 0.128211304635919)
+    m = Memory(temperature=0.35, noise=0.25, learning_time_increment=1)
+    m.learn(u=0, x="a")
+    m.learn(u=1, x="b")
+    m.learn(u=-1, x="a")
+    m.learn(u=0.5, x="b")
+    m.learn(u=1, x="a")
+    m.learn(u=-0.2, x="b")
+    assert 500 < sum(m.best_blend("u", ({"x": x} for x in "ab"))[0]["x"] == "a" for i in range(1000)) < 800
+    assert m.time == 6
+    m.best_blend("u", ({"x": x} for x in "ab"))
+    assert m.time == 6
+    m.best_blend("u", "ab", "x", advance=1)
+    assert m.time == 7
+    m.retrieval_time_increment = 1
+    m.best_blend("u", ({"x": x} for x in "ab"))
+    assert m.time == 8
+    m.best_blend("u", "ab", select_attribute="x", advance=0)
+    assert m.time == 8
+    m.learn(u="not a number", x="a")
+    assert m.time == 9
+    with pytest.raises(TypeError):
+        m.best_blend("u", "ab", "x", advance=1)
+    assert m.time == 9
+    a, v = m.best_blend("u", ({"x": x} for x in "bc"))
+    assert a["x"] == "b"
+    a, v = m.best_blend("u", ({"x": x} for x in "cde"))
+    assert a is None
+    assert v is None
