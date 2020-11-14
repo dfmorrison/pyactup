@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.0.8"
+__version__ = "1.0.9"
 
 import collections
 import collections.abc as abc
@@ -112,7 +112,7 @@ class Memory(dict):
         self._learning_time_increment = learning_time_increment
         self._retrieval_time_increment = retrieval_time_increment
         self._activation_history = None
-        self.reset(bool(optimized_learning))
+        self.reset(optimized_learning=bool(optimized_learning))
 
     def __repr__(self):
         return f"<Memory {dict(self.values())}>"
@@ -120,8 +120,11 @@ class Memory(dict):
     def __str__(self):
         return f"<Memory {id(self)}>"
 
-    def reset(self, optimized_learning=None):
-        """Deletes all the Memory's chunks and resets its time to zero.
+    def reset(self, preserve_prepopulated=False, optimized_learning=None):
+        """Deletes the Memory's chunks and resets its time to zero.
+        If *preserve_prepopulated* is false it deletes all chunks; if it is true it
+        deletes all chunk references later than time zero, completely deleting those
+        chunks that were created at time greater than zero.
         If *optimized_learning* is not None it sets the Memory's :attr:`optimized_learning`
         parameter; otherwise it leaves it unchanged. This Memory's :attr:`noise`,
         :attr:`decay`, :attr:`temperature`, :attr:`threshold` and :attr:`mismatch`
@@ -129,10 +132,17 @@ class Memory(dict):
         """
         if optimized_learning and self._decay >= 1:
             raise RuntimeError(f"Optimized learning cannot be enabled if the decay, {self._decay}, is not less than 1")
+        if preserve_prepopulated:
+            preserved = {k: v for k, v in self.items() if v._creation == 0}
+            print(preserved)
         self.clear()
         self._time = 0
         if optimized_learning is not None:
             self._optimized_learning = bool(optimized_learning)
+        if preserve_prepopulated:
+            for k, v in preserved.items():
+                v._references = 0 if self._optimized_learning else [0]
+                self[k] = v
 
     @property
     def time(self):

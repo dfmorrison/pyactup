@@ -1,4 +1,4 @@
-PyACTUp version 1.0.8
+PyACTUp version 1.0.9
 *********************
 
 .. toctree::
@@ -282,8 +282,6 @@ Both players are modeled, and attempt to chose their moves based on their expect
 the move that will be made by their opponents. The two players differ in how much of the
 prior history they consider in creating their expectations.
 
-Download the source code for the `rock, paper, scissors <http://halle.psy.cmu.edu/pyactup/examples/rps.py>`_ example.
-
 .. code-block:: python
     :linenos:
 
@@ -460,16 +458,14 @@ and the other risky. The safe choice always pays out one unit. The risky choice 
 out three units one third of the time and zero units the rest. In this example code the choice
 is made by each virtual participant over the course of 60 rounds, learning from the experience
 of previous rounds. And the results are collected over 10,000 independent participants, and
-the number of risky choices, averaged over all participants, is plotted.
+the number of risky choices at each round, averaged over all participants, is plotted.
 
 This code uses two other Python packages, `matplotlib <https://matplotlib.org/>`_
 and `tqdm <https://tqdm.github.io/>`_.
 Neither is actually used by the model proper, and the code can be rearranged to dispense with
-them, if preferred. ``Matplotlib`` is used to generate a graph of the results, and ``tqdm``
+them, if preferred. ``Matplotlib`` is used to draw a graph of the results, and ``tqdm``
 to display a progress indicator, as this example takes on the order of twenty seconds to run
 in CPython.
-
-Download the source code for the `safe, risky <http://halle.psy.cmu.edu/pyactup/examples/safe_risky.py>`_ example.
 
 .. code-block:: python
     :linenos:

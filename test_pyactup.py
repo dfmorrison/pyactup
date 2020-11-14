@@ -128,7 +128,7 @@ def test_reset():
     assert m.optimized_learning == False
     assert len(m) == 0
     assert m.time == 2.5
-    m.reset(True)
+    m.reset(optimized_learning=True)
     assert m.optimized_learning == True
     assert len(m) == 0
     assert m.time == 0
@@ -147,8 +147,20 @@ def test_reset():
     m.advance()
     assert len(m) == 2
     assert m.time == 2
-    m.reset(False)
+    m.reset(optimized_learning=False)
     assert m.optimized_learning == False
+    assert len(m) == 0
+    assert m.time == 0
+    m.learn(species="African Swallow", range="400")
+    m.learn(species="European Swallow", range="300")
+    m.advance()
+    m.learn(species="Python", range="300")
+    assert len(m) == 3
+    assert m.time == 1
+    m.reset(True)
+    assert len(m) == 2
+    assert m.time == 0
+    m.reset(False)
     assert len(m) == 0
     assert m.time == 0
 
@@ -197,18 +209,18 @@ def test_decay():
         m.decay = -1
     m.decay = 0.435
     assert isclose(m.decay, 0.435)
-    m.reset(True)
+    m.reset(optimized_learning=True)
     with pytest.raises(ValueError):
         m.decay = 1
     with pytest.raises(ValueError):
         m.decay = 3.14159265359
-    m.reset(False)
+    m.reset(optimized_learning=False)
     m.decay = 1
     with pytest.raises(RuntimeError):
-        m.reset(True)
+        m.reset(optimized_learning=True)
     m.decay = 2.7182818
     with pytest.raises(RuntimeError):
-        m.reset(True)
+        m.reset(optimized_learning=True)
     m.reset(False)
     m.temperature = 1
     m.noise = 0
@@ -224,7 +236,7 @@ def test_decay():
     assert c._activation() == 0
     m.decay = 0.8
     assert isclose(c._activation(), -1.0281200094565899)
-    m.reset(True)
+    m.reset(optimized_learning=True)
     m.learn(foo=1, advance=0)
     m.advance(4)
     m.learning_time_increment = 0

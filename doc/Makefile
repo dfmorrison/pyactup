@@ -15,7 +15,7 @@ help:
 .PHONY: help Makefile
 
 all: html
-	tar -cJf _build/pyactup-documentation.txz --exclude=_sources _build/html
+	cd _build/ ; tar -cJf pyactup-documentation.txz --exclude=_sources html
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
