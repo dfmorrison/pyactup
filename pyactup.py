@@ -37,7 +37,10 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.0.9"
+__version__ = "1.1.0.dev1"
+
+if "dev" in __version__:
+    print("PyACTUp version", __version__)
 
 import collections
 import collections.abc as abc
@@ -406,12 +409,17 @@ class Memory(dict):
     _similarity_functions = {}
     _similarity_cache = pylru.lrucache(SIMILARITY_CACHE_SIZE)
 
+    # possibly update docstrings for retrieve() and blend() to reflect new similarity stuff,
+    # or maybe put it all n set_similarity_function() and/or mismatch?
     def _similarity(self, x, y, attribute):
         # always returns the "natural" similarity
+        # returns None if similarity is inapplicatble to attribute
         if x == y:
             return 1
         fn = self._similarity_functions.get(attribute)
-        if fn:
+        if fn is True:
+            return 0
+        elif fn:
             signature = (x, y, attribute)
             result = self._similarity_cache.get(signature)
             if result is not None:
@@ -430,8 +438,6 @@ class Memory(dict):
                 result += 1
             self._similarity_cache[signature] = result
             return result
-        else:
-            return 0
 
     def learn(self, advance=None, **kwargs):
         """Adds, or reinforces, a chunk in this Memory with the attributes specified by *kwargs*.
@@ -600,27 +606,59 @@ class Memory(dict):
             while True:
                 chunk = self._chunks.__next__()             # pass on up the Stop Iteration
                 if self._conditions.keys() <= chunk.keys(): # subset
-                    if self._memory._mismatch is not None:
-                        activation = chunk._activation(True)
-                        mismatch = (self._memory._mismatch
-                                    * sum(self._memory._similarity(c, chunk[s], s) - 1
-                                          for s, c in self._conditions.items()))
-                        total = activation + mismatch
-                        if self._memory._activation_history is not None:
-                            history = self._memory._activation_history[-1]
-                            history["mismatch"] = mismatch
-                            history["activation"] = total
-                        return (chunk, total)
+                    if self._memory._mismatch is None:
+                        exact = self._conditions.keys()
+                        partial = []
                     else:
-                        if not all(chunk[a] == v for a, v in self._conditions.items()):
-                            continue
-                        activation = chunk._activation(True)
+                        exact = []
+                        partial = []
+                        for c in self._conditions.keys():
+                            if Memory._similarity_functions.get(c):
+                                partial.append(c)
+                            else:
+                                exact.append(c)
+                    if not all(chunk[a] == self._conditions[a] for a in exact):
+                        continue
+                    activation = chunk._activation(True)
+                    if self._memory._mismatch is None:
                         if self._memory._activation_history is not None:
                             self._memory._activation_history[-1]["activation"] = activation
                         return (chunk, activation)
+                    mismatch = (self._memory._mismatch
+                                * sum(self._memory._similarity(self._conditions[a], chunk[a], a) - 1
+                                      for a in partial))
+                    total = activation + mismatch
+                    if self._memory._activation_history is not None:
+                        history = self._memory._activation_history[-1]
+                        history["mismatch"] = mismatch
+                        history["activation"] = total
+                    return (chunk, total)
+
+        # def __next__(self):
+        #     while True:
+        #         chunk = self._chunks.__next__()             # pass on up the Stop Iteration
+        #         if self._conditions.keys() <= chunk.keys(): # subset
+        #             if self._memory._mismatch is not None:
+        #                 activation = chunk._activation(True)
+        #                 mismatch = (self._memory._mismatch
+        #                             * sum(self._memory._similarity(c, chunk[s], s) - 1
+        #                                   for s, c in self._conditions.items()))
+        #                 total = activation + mismatch
+        #                 if self._memory._activation_history is not None:
+        #                     history = self._memory._activation_history[-1]
+        #                     history["mismatch"] = mismatch
+        #                     history["activation"] = total
+        #                 return (chunk, total)
+        #             else:
+        #                 if not all(chunk[a] == v for a, v in self._conditions.items()):
+        #                     continue
+        #                 activation = chunk._activation(True)
+        #                 if self._memory._activation_history is not None:
+        #                     self._memory._activation_history[-1]["activation"] = activation
+        #                 return (chunk, activation)
 
     def _activations(self, conditions):
-        return self._Activations(self, conditions)
+         return self._Activations(self, conditions)
 
     def _partial_match(self, conditions):
         best_chunks = []
@@ -691,7 +729,7 @@ class Memory(dict):
         """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
         The extreme value is normally the maximum, but can be made the minimum by setting
         *minimize* to True. The values returned by *iterable* should be dictionary-like
-        objects that can be passed as the *kwargs* argument to :meth:`blend`. The first
+        object that can be passed as the *kwargs* argument to :meth:`blend`. The first
         return value is the *kwargs* value producing the best blended value, and second is
         that blended value. If there is a tie, with two or more *kwargs* values all
         producing the same, best blended value, then one of them is chosen randomly. If
@@ -786,6 +824,7 @@ def use_actr_similarity(value=None):
         Memory._use_actr_similarity = bool(value)
     return Memory._use_actr_similarity
 
+# TODO update docstring
 def set_similarity_function(function, *slots):
     """Assigns a similarity function to be used when comparing attribute values with the given names.
     The function should take two arguments, and return a real number between 0 and 1,
@@ -804,7 +843,12 @@ def set_similarity_function(function, *slots):
     >>> set_similarity_function(f, "length", "width")
     """
     for s in slots:
-        Memory._similarity_functions[s] = function
+        if callable(function):
+            Memory._similarity_functions[s] = function
+        elif function:
+            Memory._similarity_functions[s] = True
+        elif s in Memory._similarity_functions:
+            del Memory._similarity_functions[s]
     Memory._similarity_cache.clear()
 
 

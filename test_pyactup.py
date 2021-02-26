@@ -343,10 +343,12 @@ def test_similarity():
             return sim(y, x)
         return 1 - (y - x) / y
     set_similarity_function(sim, "a")
+    set_similarity_function(True, "b")
     m = Memory(mismatch=1)
     assert len(Memory._similarity_cache) == 0
     assert isclose(m._similarity(3, 3, "a"), 1)
     assert isclose(m._similarity(4, 3, "b"), 0)
+    assert m._similarity(4, 3, "c") is None
     assert len(Memory._similarity_cache) == 0
     assert isclose(m._similarity(3, 4, "a"), 0.75)
     assert len(Memory._similarity_cache) == 1
