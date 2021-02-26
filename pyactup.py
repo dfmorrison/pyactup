@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.1.0.dev1"
+__version__ = "1.1.0.dev2"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -52,6 +52,7 @@ import random
 import sys
 
 from collections import OrderedDict
+from contextlib import contextmanager
 from warnings import warn
 
 __all__ = ("Memory", "set_similarity_function", "use_actr_similarity")
@@ -101,8 +102,11 @@ class Memory(dict):
                  retrieval_time_increment=DEFAULT_RETRIEVAL_TIME_INCREMENT,
                  optimized_learning=False):
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
-        self.noise = noise
+        self._activation_noise_cache = None
+        self._activation_noise_cache_time = None
+        self._noise = None
         self._decay = None
+        self.noise = noise
         self._optimized_learning = False
         self.decay = decay
         if temperature is None and not self._validate_temperature(None, noise):
@@ -146,6 +150,23 @@ class Memory(dict):
             for k, v in preserved.items():
                 v._references = 0 if self._optimized_learning else [0]
                 self[k] = v
+        self._clear_noise_cache()
+
+    def _clear_noise_cache(self):
+        if self._activation_noise_cache is not None:
+            self._activation_noise_cache.clear()
+            self._activation_noise_cache_time = self._time
+
+    @contextmanager
+    def fixed_noise(self):
+        """ TODO write docstring, and maybe update theory section of doc """
+        self._activation_noise_cache = {}
+        self._activation_noise_cache_time = self._time
+        try:
+            yield self
+        finally:
+            self._activation_noise_cache = None
+            self._activation_noise_cache_time = None
 
     @property
     def time(self):
@@ -161,7 +182,9 @@ class Memory(dict):
         """
         if amount < 0:
             raise ValueError(f"Time cannot be advanced backward ({amount})")
-        self._time += amount
+        if amount:
+            self._time += amount
+            self._clear_noise_cache()
         return self._time
 
     @property
@@ -217,7 +240,9 @@ class Memory(dict):
                 self.temperature = 1
             else:
                 self._temperature = t
-        self._noise = value
+        if value != self._noise:
+            self._noise = value
+            self._clear_noise_cache()
 
     @property
     def decay(self):
@@ -563,8 +588,8 @@ class Memory(dict):
             return result
         finally:
             if old is not None:
-                # don't advance if there's an error or for some other reason we don't
-                # finish normally
+                # Don't advance if there's an error or for some other reason we don't
+                # finish normally; note that the noise cache is still cleared, though.
                 self._time = old
 
     def _exact_match(self, conditions):
@@ -586,11 +611,19 @@ class Memory(dict):
                     best_activation = a
         return best_chunk
 
-    def _make_noise(self):
+    def _make_noise(self, chunk):
         if not self._noise:
             return 0
-        p = random.uniform(sys.float_info.epsilon, 1 - sys.float_info.epsilon)
-        return self._noise * math.log((1.0 - p) / p)
+        if self._activation_noise_cache is not None:
+            result = self._activation_noise_cache.get(chunk._name)
+        else:
+            result = None
+        if result is None:
+            p = random.uniform(sys.float_info.epsilon, 1 - sys.float_info.epsilon)
+            result = self._noise * math.log((1.0 - p) / p)
+        if self._activation_noise_cache is not None:
+            self._activation_noise_cache[chunk._name] = result
+        return result
 
     class _Activations(abc.Iterable):
 
@@ -634,28 +667,6 @@ class Memory(dict):
                         history["activation"] = total
                     return (chunk, total)
 
-        # def __next__(self):
-        #     while True:
-        #         chunk = self._chunks.__next__()             # pass on up the Stop Iteration
-        #         if self._conditions.keys() <= chunk.keys(): # subset
-        #             if self._memory._mismatch is not None:
-        #                 activation = chunk._activation(True)
-        #                 mismatch = (self._memory._mismatch
-        #                             * sum(self._memory._similarity(c, chunk[s], s) - 1
-        #                                   for s, c in self._conditions.items()))
-        #                 total = activation + mismatch
-        #                 if self._memory._activation_history is not None:
-        #                     history = self._memory._activation_history[-1]
-        #                     history["mismatch"] = mismatch
-        #                     history["activation"] = total
-        #                 return (chunk, total)
-        #             else:
-        #                 if not all(chunk[a] == v for a, v in self._conditions.items()):
-        #                     continue
-        #                 activation = chunk._activation(True)
-        #                 if self._memory._activation_history is not None:
-        #                     self._memory._activation_history[-1]["activation"] = activation
-        #                 return (chunk, activation)
 
     def _activations(self, conditions):
          return self._Activations(self, conditions)
@@ -721,8 +732,8 @@ class Memory(dict):
                 return None
         finally:
             if old is not None:
-                # don't advance if there's an error or for some other reason we don't
-                # finish normally
+                # Don't advance if there's an error or for some other reason we don't
+                # finish normally; note that the noise cache is still cleared, though.
                 self._time = old
 
     def best_blend(self, outcome_attribute, iterable, select_attribute=None, advance=None, minimize=False):
@@ -797,7 +808,7 @@ class Memory(dict):
         finally:
             if old is not None:
                 # Don't advance if there's an error or for some other reason we don't
-                # finish normally
+                # finish normally; note that the noise cache is still cleared, though.
                 self._time = old
 
 
@@ -878,7 +889,7 @@ class Chunk(dict):
     def _activation(self, for_partial=False):
         # Does not include the mismatch penalty component, that's handled by the caller.
         base = self._get_base_activation() if self._memory._decay is not None else 0
-        noise = self._memory._make_noise()
+        noise = self._memory._make_noise(self)
         result = base + noise
         if self._memory._activation_history is not None:
             history = OrderedDict(name=self._name,
@@ -895,7 +906,7 @@ class Chunk(dict):
         return result
 
     # Note that memoizing expt and ln doesn't make much difference, but it does speed
-    # things up a tiny bit, most noticeably under PyPy
+    # things up a tiny bit, most noticeably under PyPy.
     def _cached_expt(self, base):
         try:
             result = self._memory._expt_cache[base]
