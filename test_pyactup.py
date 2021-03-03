@@ -8,6 +8,7 @@ import pytest
 import sys
 
 from math import isclose
+from pprint import pprint
 
 def test_parameter_manipulation():
     m = Memory()
@@ -484,3 +485,158 @@ def test_best_blend():
     a, v = m.best_blend("u", ({"x": x} for x in "cde"))
     assert a is None
     assert v is None
+
+def test_mixed_slots():
+    m = Memory(temperature=1, noise=0)
+    m.learn(decision="A", color="red", size=1, utility=0)
+    m.learn(decision="A", color="blue", size=4, utility=100)
+    m.learn(decision="A", color="red", size=3, utility=10)
+    m.learn(decision="B", color="red", size=3, utility=50)
+
+    def run_once(d_ret_u=0, d_ret_a=0, d_ret_m=None,
+                 c_ret_u=0, c_ret_a=0, c_ret_m=None,
+                 d_blnd_u=0, d_blnd_a=0, d_blnd_m=None,
+                 c_blnd_u=0, c_blnd_a=0, c_blnd_m=None,
+                 s_blnd_u=0, s_blnd_a=0, s_blnd_m=None,
+                 d_best=None, d_best_v=0, d_best_a=0, d_best_m=None,
+                 c_best=None, c_best_v=0, c_best_a=0, c_best_m=None,
+                 print_only=False): # print_only=True useful for debugging, etc.
+        ah = []
+        m.activation_history = ah
+        r = m.retrieve(partial=True, decision="A")
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("d_ret_u =", r["utility"], ", d_ret_a =", ah[-1]["activation"], ", d_ret_m =", mp)
+        else:
+            assert r["utility"] == d_ret_u
+            assert isclose(ah[-1]["activation"], d_ret_a)
+            assert mp is d_ret_m or isclose(mp, d_ret_m)
+
+        ah.clear()
+        r = m.retrieve(partial=True, color="red")
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("c_ret_u =", r["utility"], ", c_ret_a =", ah[-1]["activation"],  ", c_ret_m = ", mp)
+        else:
+            assert r["utility"] == c_ret_u
+            assert isclose(ah[-1]["activation"], c_ret_a)
+            assert mp is c_ret_m or isclose(mp, c_ret_m)
+
+        ah.clear()
+        b = m.blend("utility", decision="A")
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("d_blnd_u =", b, ", d_blnd_a =", ah[-1]["activation"], ", d_blnd_m =", mp)
+        else:
+            assert b == d_blnd_u
+            assert isclose(ah[-1]["activation"], d_blnd_a)
+            assert mp is d_blnd_m or isclose(mp, d_blnd_m)
+
+        ah.clear()
+        b = m.blend("utility", color="red")
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("c_blnd_u =", b, ", c_blnd_a =", ah[-1]["activation"], ", c_blnd_m =", mp)
+        else:
+            assert b == c_blnd_u
+            assert isclose(ah[-1]["activation"], c_blnd_a)
+            assert mp is c_blnd_m or isclose(mp, c_blnd_m)
+
+        ah.clear()
+        b = m.blend("utility", size=2)
+        mp = ah[-1].get("mismatch") if ah else None
+        if print_only:
+            print("s_blnd_u =", b, ", s_blnd_a =", ah and ah[-1]["activation"], ", s_blnd_m =", mp)
+        else:
+            assert b == s_blnd_u
+            assert isclose(ah[-1]["activation"], s_blnd_a) if ah else s_blnd_a is None
+            assert mp is s_blnd_m or isclose(mp, s_blnd_m)
+
+        ah.clear()
+        d, v = m.best_blend("utility", "AB", "decision")
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("d_best =", d, ", d_best_v =", v, ", d_best_a =", ah[-1]["activation"], ", d_best_m =", mp)
+        else:
+            assert d == d_best
+            assert v == d_best_v
+            assert isclose(ah[-1]["activation"], d_best_a)
+            assert mp is d_best_m or isclose(mp, d_best_m)
+
+        ah.clear()
+        c, v = m.best_blend("utility", ("red", "blue"), "color")
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("c_best =", d, ", c_best_v =", v, ", c_best_a =", ah[-1]["activation"], ", c_best_m =", mp)
+        else:
+            assert d == c_best
+            assert v == c_best_v
+            assert isclose(ah[-1]["activation"], c_best_a)
+            assert mp is c_best_m or isclose(mp, c_best_m)
+
+    run_once(10, -0.3465735902799726, None,
+             50, 0, None,
+             36.31698208548453, -0.3465735902799726, None,
+             25.85786437626905, 0, None,
+             None, None, None,
+             "B", 50, 0, None,
+             "B", 100, -0.5493061443340549, None)
+    m.mismatch = 1
+    run_once(10, -0.3465735902799726, 0,
+             50, 0, 0,
+             36.31698208548453, -0.3465735902799726, 0,
+             25.85786437626905, 0, 0,
+             None, None, None,
+             "B", 50, 0, 0,
+             "B", 100, -0.5493061443340549, 0)
+    set_similarity_function(True, "color")
+    run_once(10, -0.3465735902799726, 0,
+             50, 0, 0,
+             36.31698208548453, -0.3465735902799726, 0,
+             32.366410445083744, 0, 0,
+             None, None, None,
+             "B", 50, 0, 0,
+             "B", 56.669062843109664, -1, -1)
+    set_similarity_function(lambda x, y: 1 - abs(x - y) / 4, "size")
+    run_once(10, -0.3465735902799726, 0,
+             50, 0, 0,
+             36.31698208548453, -0.3465735902799726, 0,
+             32.366410445083744, 0, 0,
+             38.406038686568394, -0.25, -0.25,
+             "B", 50, 0, 0,
+             "B", 56.669062843109664, -1, -1)
+
+def test_fixed_noise():
+    N = 300
+    m = Memory()
+    for i in range(N):
+        m.learn(n=i)
+    ah = []
+    m.activation_history = ah
+    m.retrieve()
+    m.retrieve()
+    m.retrieve()
+    for i in range(N):
+        assert ah[i]["activation_noise"] != ah[i + N]["activation_noise"]
+        assert ah[i]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
+        assert ah[i + N]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
+    ah.clear()
+    with m.fixed_noise():
+        m.retrieve()
+        m.retrieve()
+        m.retrieve()
+    for i in range(N):
+        assert ah[i]["activation_noise"] == ah[i + N]["activation_noise"]
+        assert ah[i]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
+        assert ah[i + N]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
+    ah.clear()
+    with m.fixed_noise():
+        m.retrieve()
+        m.advance()
+        m.retrieve()
+        m.retrieve()
+    for i in range(N):
+        assert ah[i]["activation_noise"] != ah[i + N]["activation_noise"]
+        assert ah[i]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
+        assert ah[i + N]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
+
