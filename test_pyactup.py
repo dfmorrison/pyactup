@@ -621,7 +621,7 @@ def test_fixed_noise():
         assert ah[i]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
         assert ah[i + N]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
     ah.clear()
-    with m.fixed_noise():
+    with m.fixed_noise:
         m.retrieve()
         m.retrieve()
         m.retrieve()
@@ -630,7 +630,7 @@ def test_fixed_noise():
         assert ah[i]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
         assert ah[i + N]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
     ah.clear()
-    with m.fixed_noise():
+    with m.fixed_noise:
         m.retrieve()
         m.advance()
         m.retrieve()

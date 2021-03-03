@@ -157,6 +157,7 @@ class Memory(dict):
             self._activation_noise_cache.clear()
             self._activation_noise_cache_time = self._time
 
+    @property
     @contextmanager
     def fixed_noise(self):
         """ TODO write docstring, and maybe update theory section of doc """
