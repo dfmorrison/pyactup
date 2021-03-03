@@ -1,5 +1,5 @@
-PyACTUp version 1.0.9
-*********************
+PyACTUp version 1.1
+*******************
 
 .. toctree::
    :maxdepth: 3
@@ -95,14 +95,14 @@ you may have to modify the above in various ways
 
 If you are unable to install PyACTUp as above, you can instead
 `download a tarball <https://bitbucket.org/dfmorrison/pyactup/downloads/?tab=downloads>`_.
-The tarball will have a filename something like pyactup-1.0.tar.gz.
-Assuming this file is at ``/some/directory/pyactup-1.0.tar.gz`` install it by typing at the command line
+The tarball will have a filename something like pyactup-1.1.tar.gz.
+Assuming this file is at ``/some/directory/pyactup-1.1.tar.gz`` install it by typing at the command line
 
-  .. parsed-literal:: pip install /some/directory/pyactup-1.0.tar.gz
+  .. parsed-literal:: pip install /some/directory/pyactup-1.1.tar.gz
 
 Alternatively you can untar the tarball with
 
-  .. parsed-literal:: tar -xf /some/directory/pyactup-1.0.tar.gz
+  .. parsed-literal:: tar -xf /some/directory/pyactup-1.1.tar.gz
 
 and then change to the resulting directory and type
 
@@ -161,7 +161,11 @@ Activation noise
 
 The activation noise, :math:`\epsilon_{i}`, implements the stochasticity of retrievals from Memory.
 It is sampled from a logistic distribution centered on zero. A Memory object has a scale
-parameter, ``noise``, for this distribution. It is resampled each time the activation is computed.
+parameter, ``noise``, for this distribution. It is normally resampled each time the activation is computed.
+
+For some esoteric purposes when a chunk’s activation is computed repeatedly at the same time it
+may be desired to have all these same-time activations of a chunk use the same sample of activation noise.
+While this is rarely needed, when it is the ``fixed_noise`` context manager can be used.
 
 Note that setting the ``noise`` parameter to zero results in supplying
 no noise to the activation. This does not quite make operation of
@@ -172,10 +176,13 @@ Partial Matching
 ~~~~~~~~~~~~~~~~
 
 If the Memory’s ``mismatch`` parameter is ``None``, the partial matching correction, :math:`P_{i}`, is zero.
-Setting the parameter to ``None`` is equivalent to setting it to :math:`-\inf`, ensuring that only chunks
+Setting the parameter to ``None`` is equivalent to setting it to :math:`\inf`, ensuring that only chunks
 that exactly match the retrival specification are considered.
 Otherwise :math:`P_{i}` depends upon the similarities of the attributes of the chunk to those attributes
 being sought in the retrieval and the value of the ``mismatch`` parameter.
+When considering chunks in partial retrievals or blending operations attributes for which no similarity
+function has been defined are treated as exact matches; chunks not matching these attributes are not
+included in the partial retrieval or blending operation.
 
 PyACTUp normally uses a "natural" representation of similarities, where two values being completely similar, identical,
 has a value of one; and being completely dissimilar has a value of zero; with various other degrees of similarity being
@@ -262,6 +269,8 @@ API Reference
    .. autoattribute:: optimized_learning
 
    .. autoattribute:: activation_history
+
+   .. autoattribute:: fixed_noise
 
    .. automethod:: forget
 

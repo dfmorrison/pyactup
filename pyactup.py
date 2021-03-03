@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2020 Carnegie Mellon University
+# Copyright (c) 2018-2021 Carnegie Mellon University
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this
 # software and associated documentation files (the "Software"), to deal in the Software
@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.1.0.dev2"
+__version__ = "1.1"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -160,7 +160,62 @@ class Memory(dict):
     @property
     @contextmanager
     def fixed_noise(self):
-        """ TODO write docstring, and maybe update theory section of doc """
+        """A context manager used to force multiple activations of a given chunk at the
+        same time to use the same activation noise.
+
+        .. warning::
+            Use of ``fixed_noise`` is rarely appropriate, and easily leads to biologically
+            implausible results. It is provided only for esoteric purposes. When its use
+            is required it should be wrapped around the smallest fragment of code
+            practical.
+
+        >>> m = Memory()
+        >>> m.learn(color="red")
+        True
+        >>> m.activation_history = []
+        >>> m.retrieve()
+        <Chunk 0000 {'color': 'red'}>
+        >>> m.retrieve()
+        <Chunk 0000 {'color': 'red'}>
+        >>> pprint(m.activation_history)
+        [OrderedDict([('name', '0000'),
+                      ('creation_time', 0),
+                      ('attributes', (('color', 'red'),)),
+                      ('references', (0,)),
+                      ('base_activation', 0.0),
+                      ('activation_noise', -0.5560365037582069),
+                      ('activation', -0.5560365037582069)]),
+         OrderedDict([('name', '0000'),
+                      ('creation_time', 0),
+                      ('attributes', (('color', 'red'),)),
+                      ('references', (0,)),
+                      ('base_activation', 0.0),
+                      ('activation_noise', 0.3352040096847542),
+                      ('activation', 0.3352040096847542)])]
+        >>> m.activation_history = []
+        >>> with m.fixed_noise:
+        ...     m.retrieve()
+        ...     m.retrieve()
+        ...
+        <Chunk 0000 {'color': 'red'}>
+        <Chunk 0000 {'color': 'red'}>
+        >>> pprint(m.activation_history)
+        [OrderedDict([('name', '0000'),
+                      ('creation_time', 0),
+                      ('attributes', (('color', 'red'),)),
+                      ('references', (0,)),
+                      ('base_activation', 0.0),
+                      ('activation_noise', 0.9791851742870211),
+                      ('activation', 0.9791851742870211)]),
+         OrderedDict([('name', '0000'),
+                      ('creation_time', 0),
+                      ('attributes', (('color', 'red'),)),
+                      ('references', (0,)),
+                      ('base_activation', 0.0),
+                      ('activation_noise', 0.9791851742870211),
+                      ('activation', 0.9791851742870211)])]
+        >>>
+        """
         self._activation_noise_cache = {}
         self._activation_noise_cache_time = self._time
         try:
@@ -346,6 +401,11 @@ class Memory(dict):
         are called as necessary, and
         the resulting values are multiplied by the mismatch penalty and subtracted
         from the activation.
+
+        Attributes for which no similarity function has been defined are always compared
+        exactly, and chunks not matching on this attributes are not included at all in the
+        corresponding partial retrievals or blending operations.
+
         Attempting to set this parameter to a value other than ``None`` or a real number
         raises a :exc:`ValueError`.
         """
@@ -836,7 +896,6 @@ def use_actr_similarity(value=None):
         Memory._use_actr_similarity = bool(value)
     return Memory._use_actr_similarity
 
-# TODO update docstring
 def set_similarity_function(function, *slots):
     """Assigns a similarity function to be used when comparing attribute values with the given names.
     The function should take two arguments, and return a real number between 0 and 1,
@@ -847,6 +906,9 @@ def set_similarity_function(function, *slots):
     the same arguments.
     No error is raised if either of these constraints is violated, but the results
     will, in most cases, be meaningless if they are.
+
+    If ``True`` is supplied as the *function* a default similarity function is used that
+    returns one if its two arguments are ``==`` and zero otherwise.
 
     >>> def f(x, y):
     ...     if y < x:
