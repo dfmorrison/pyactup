@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.1"
+__version__ = "1.1.1"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -122,7 +122,7 @@ class Memory(dict):
         self.reset(optimized_learning=bool(optimized_learning))
 
     def __repr__(self):
-        return f"<Memory {dict(self.values())}>"
+        return f"<Memory {dict(self.items())}>"
 
     def __str__(self):
         return f"<Memory {id(self)}>"
@@ -214,7 +214,6 @@ class Memory(dict):
                       ('base_activation', 0.0),
                       ('activation_noise', 0.9791851742870211),
                       ('activation', 0.9791851742870211)])]
-        >>>
         """
         self._activation_noise_cache = {}
         self._activation_noise_cache_time = self._time
@@ -242,6 +241,45 @@ class Memory(dict):
             self._time += amount
             self._clear_noise_cache()
         return self._time
+
+    @property
+    @contextmanager
+    def current_time(self):
+        """A context manager used to allow reverting to the current time after advancing
+        it and simiulating retrievals or similar operations in the future.
+
+        .. warning::
+            It is rarely appropriate to use ``current_time``. When it is used, care should
+            be taken to avoid creating biologically implausible models. Also, learning
+            within a ``current_time`` context will typically lead to tears as having
+            chunks created or reinforced in the future results in failures of attempts to
+            retrieve them.
+
+        >>> m = Memory(temperature=1, noise=0)
+        >>> m.learn(size=1)
+        True
+        >>> m.advance(10)
+        11
+        >>> m.learn(size=10)
+        True
+        >>> m.blend("size")
+        7.983916860341838
+        >>> with m.current_time as t:
+        ...     m.advance(10_000)
+        ...     m.blend("size")
+        ...     (t, m.time)
+        ...
+        10012
+        5.501236696240907
+        (12, 10012)
+        >>> m.time
+        12
+        """
+        old = self._time
+        try:
+            yield old
+        finally:
+            self._time = old
 
     @property
     def learning_time_increment(self):

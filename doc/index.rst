@@ -1,5 +1,5 @@
-PyACTUp version 1.1
-*******************
+PyACTUp version 1.1.1
+*********************
 
 .. toctree::
    :maxdepth: 3
@@ -95,14 +95,14 @@ you may have to modify the above in various ways
 
 If you are unable to install PyACTUp as above, you can instead
 `download a tarball <https://bitbucket.org/dfmorrison/pyactup/downloads/?tab=downloads>`_.
-The tarball will have a filename something like pyactup-1.1.tar.gz.
-Assuming this file is at ``/some/directory/pyactup-1.1.tar.gz`` install it by typing at the command line
+The tarball will have a filename something like pyactup-1.1.1.tar.gz.
+Assuming this file is at ``/some/directory/pyactup-1.1.1.tar.gz`` install it by typing at the command line
 
-  .. parsed-literal:: pip install /some/directory/pyactup-1.1.tar.gz
+  .. parsed-literal:: pip install /some/directory/pyactup-1.1.1.tar.gz
 
 Alternatively you can untar the tarball with
 
-  .. parsed-literal:: tar -xf /some/directory/pyactup-1.1.tar.gz
+  .. parsed-literal:: tar -xf /some/directory/pyactup-1.1.1.tar.gz
 
 and then change to the resulting directory and type
 
@@ -266,9 +266,11 @@ API Reference
 
    .. autoattribute:: retrieval_time_increment
 
+   .. autoattribute:: activation_history
+
    .. autoattribute:: optimized_learning
 
-   .. autoattribute:: activation_history
+   .. autoattribute:: current_time
 
    .. autoattribute:: fixed_noise
 
