@@ -37,12 +37,11 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
 
-import collections
 import collections.abc as abc
 import math
 import numbers
@@ -51,7 +50,6 @@ import pylru
 import random
 import sys
 
-from collections import OrderedDict
 from contextlib import contextmanager
 from warnings import warn
 
@@ -177,21 +175,21 @@ class Memory(dict):
         <Chunk 0000 {'color': 'red'}>
         >>> m.retrieve()
         <Chunk 0000 {'color': 'red'}>
-        >>> pprint(m.activation_history)
-        [OrderedDict([('name', '0000'),
-                      ('creation_time', 0),
-                      ('attributes', (('color', 'red'),)),
-                      ('references', (0,)),
-                      ('base_activation', 0.0),
-                      ('activation_noise', -0.5560365037582069),
-                      ('activation', -0.5560365037582069)]),
-         OrderedDict([('name', '0000'),
-                      ('creation_time', 0),
-                      ('attributes', (('color', 'red'),)),
-                      ('references', (0,)),
-                      ('base_activation', 0.0),
-                      ('activation_noise', 0.3352040096847542),
-                      ('activation', 0.3352040096847542)])]
+        >>> pprint(m.activation_history, sort_dicts=False)
+        [{'name': '0000',
+          'creation_time': 0,
+          'attributes': (('color', 'red'),),
+          'references': (0,),
+          'base_activation': 0.0,
+          'activation_noise': 0.07779212346913301,
+          'activation': 0.07779212346913301},
+         {'name': '0000',
+          'creation_time': 0,
+          'attributes': (('color', 'red'),),
+          'references': (0,),
+          'base_activation': 0.0,
+          'activation_noise': -0.015345110792246082,
+          'activation': -0.015345110792246082}]
         >>> m.activation_history = []
         >>> with m.fixed_noise:
         ...     m.retrieve()
@@ -199,21 +197,21 @@ class Memory(dict):
         ...
         <Chunk 0000 {'color': 'red'}>
         <Chunk 0000 {'color': 'red'}>
-        >>> pprint(m.activation_history)
-        [OrderedDict([('name', '0000'),
-                      ('creation_time', 0),
-                      ('attributes', (('color', 'red'),)),
-                      ('references', (0,)),
-                      ('base_activation', 0.0),
-                      ('activation_noise', 0.9791851742870211),
-                      ('activation', 0.9791851742870211)]),
-         OrderedDict([('name', '0000'),
-                      ('creation_time', 0),
-                      ('attributes', (('color', 'red'),)),
-                      ('references', (0,)),
-                      ('base_activation', 0.0),
-                      ('activation_noise', 0.9791851742870211),
-                      ('activation', 0.9791851742870211)])]
+        >>> pprint(m.activation_history, sort_dicts=False)
+        [{'name': '0000',
+          'creation_time': 0,
+          'attributes': (('color', 'red'),),
+          'references': (0,),
+          'base_activation': 0.0,
+          'activation_noise': 0.8614281690342627,
+          'activation': 0.8614281690342627},
+         {'name': '0000',
+          'creation_time': 0,
+          'attributes': (('color', 'red'),),
+          'references': (0,),
+          'base_activation': 0.0,
+          'activation_noise': 0.8614281690342627,
+          'activation': 0.8614281690342627}]
         """
         self._activation_noise_cache = {}
         self._activation_noise_cache_time = self._time
@@ -483,24 +481,24 @@ class Memory(dict):
         True
         >>> m.activation_history = []
         >>> m.blend("size", color="red")
-        4.483378114110536
-        >>> pprint(m.activation_history)
-        [OrderedDict([('name', '0002'),
-                      ('creation_time', 0),
-                      ('attributes', (('color', 'red'), ('size', 3))),
-                      ('references', (0,)),
-                      ('base_activation', -0.3465735902799726),
-                      ('activation_noise', 0.10712356940903703),
-                      ('activation', -0.23945002087093556),
-                      ('retrieval_probability', 0.25831094294473195)]),
-         OrderedDict([('name', '0003'),
-                      ('creation_time', 1),
-                      ('attributes', (('color', 'red'), ('size', 5))),
-                      ('references', (1,)),
-                      ('base_activation', 0.0),
-                      ('activation_noise', 0.13346608542692032),
-                      ('activation', 0.13346608542692032),
-                      ('retrieval_probability', 0.741689057055268)])]
+        4.027391084562462
+        >>> pprint(m.activation_history, sort_dicts=False)
+        [{'name': '0000',
+          'creation_time': 0,
+          'attributes': (('color', 'red'), ('size', 3)),
+          'references': (0,),
+          'base_activation': -0.3465735902799726,
+          'activation_noise': 0.4750912862904178,
+          'activation': 0.12851769601044521,
+          'retrieval_probability': 0.48630445771876907},
+         {'name': '0001',
+          'creation_time': 1,
+          'attributes': (('color', 'red'), ('size', 5)),
+          'references': (1,),
+          'base_activation': 0.0,
+          'activation_noise': 0.14789096368864968,
+          'activation': 0.14789096368864968,
+          'retrieval_probability': 0.5136955422812309}]
         """
         return self._activation_history
 
@@ -993,14 +991,14 @@ class Chunk(dict):
         noise = self._memory._make_noise(self)
         result = base + noise
         if self._memory._activation_history is not None:
-            history = OrderedDict(name=self._name,
-                                  creation_time=self._creation,
-                                  attributes=tuple(self.items()),
-                                  references=(self._references
-                                              if self._memory.optimized_learning
-                                              else tuple(self._references)),
-                                  base_activation=base,
-                                  activation_noise=noise)
+            history = {"name": self._name,
+                       "creation_time": self._creation,
+                       "attributes": tuple(self.items()),
+                       "references": (self._references
+                                      if self._memory.optimized_learning
+                                   else tuple(self._references)),
+                       "base_activation": base,
+                       "activation_noise": noise}
             if not for_partial:
                 history["activation"] = result
             self._memory._activation_history.append(history)
