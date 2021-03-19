@@ -27,15 +27,15 @@ ways
 If you are unable to install PyACTUp as above, you can instead
 download a tarball from
 [bitbucket](https://bitbucket.org/dfmorrison/pyactup/downloads/).
-The tarball will have a filename something like `pyactup-1.1.2.tar.gz`.
-Assuming this file is at `/some/directory/pyactup-1.1.2.tar.gz` install
+The tarball will have a filename something like `pyactup-1.1.3.tar.gz`.
+Assuming this file is at `/some/directory/pyactup-1.1.3.tar.gz` install
 it by typing at the command line
 
-    pip install /some/directory/pyactup-1.1.2.tar.gz
+    pip install /some/directory/pyactup-1.1.3.tar.gz
 
 Alternatively you can untar the tarball with
 
-    tar -xf /some/directory/pyactup-1.1.2.tar.gz
+    tar -xf /some/directory/pyactup-1.1.3.tar.gz
 
 and then change to the resulting directory and type
 
