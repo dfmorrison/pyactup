@@ -176,7 +176,7 @@ Partial Matching
 ~~~~~~~~~~~~~~~~
 
 If the Memory’s ``mismatch`` parameter is ``None``, the partial matching correction, :math:`P_{i}`, is zero.
-Setting the parameter to ``None`` is equivalent to setting it to :math:`\inf`, ensuring that only chunks
+Setting the parameter to ``None`` is equivalent to setting it to ∞, ensuring that only chunks
 that exactly match the retrival specification are considered.
 Otherwise :math:`P_{i}` depends upon the similarities of the attributes of the chunk to those attributes
 being sought in the retrieval and the value of the ``mismatch`` parameter.

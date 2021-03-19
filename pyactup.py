@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.1.2"
+__version__ = "1.1.3.dev1"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -139,7 +139,6 @@ class Memory(dict):
             raise RuntimeError(f"Optimized learning cannot be enabled if the decay, {self._decay}, is not less than 1")
         if preserve_prepopulated:
             preserved = {k: v for k, v in self.items() if v._creation == 0}
-            print(preserved)
         self.clear()
         self._time = 0
         if optimized_learning is not None:
