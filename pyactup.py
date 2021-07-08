@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.1.3"
+__version__ = "1.1.4.dev1"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -45,6 +45,7 @@ if "dev" in __version__:
 import collections.abc as abc
 import math
 import numbers
+import numpy as np
 import operator
 import pylru
 import random
@@ -1005,15 +1006,15 @@ class Chunk(dict):
 
     # Note that memoizing expt and ln doesn't make much difference, but it does speed
     # things up a tiny bit, most noticeably under PyPy.
-    def _cached_expt(self, base):
-        try:
-            result = self._memory._expt_cache[base]
-            if result is None:
-                result = math.pow(base, -self._memory._decay)
-                self._memory._expt_cache[base] = result
-            return result
-        except (IndexError, TypeError):
-            return math.pow(base, -self._memory._decay)
+    # def _cached_expt(self, base):
+    #     try:
+    #         result = self._memory._expt_cache[base]
+    #         if result is None:
+    #             result = math.pow(base, -self._memory._decay)
+    #             self._memory._expt_cache[base] = result
+    #         return result
+    #     except (IndexError, TypeError):
+    #         return math.pow(base, -self._memory._decay)
 
     def _cached_ln(self, arg):
         try:
@@ -1033,9 +1034,11 @@ class Chunk(dict):
                                              - self._memory._ln_1_mius_d
                                              - self._memory._decay * self._cached_ln(self._memory._time - self._creation))
                 else:
-                    base = sum(self._cached_expt(self._memory._time - ref)
-                               for ref in self._references)
-                    self._base_activation = math.log(base)
+                    refs = np.array(self._references)
+                    self._base_activation = math.log(np.sum((self._memory._time - refs)**-self._memory._decay))
+                    # base = sum(self._cached_expt(self._memory._time - ref)
+                    #            for ref in self._references)
+                    # self._base_activation = math.log(base)
             except ValueError as e:
                 if self._memory._time <= self._creation:
                     raise RuntimeError("Can't compute activation of a chunk at or before the time it was created")
