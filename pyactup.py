@@ -64,7 +64,7 @@ DEFAULT_RETRIEVAL_TIME_INCREMENT = 0
 
 MINIMUM_TEMPERATURE = 0.01
 
-TRANSCENDENTAL_CACHE_SIZE = 1000
+LN_CACHE_SIZE = 1000
 SIMILARITY_CACHE_SIZE = 10_000
 
 class Memory(dict):
@@ -360,8 +360,7 @@ class Memory(dict):
             elif self._optimized_learning:
                 self._ln_1_mius_d = "illegal value" # ensure error it attempt to use this
                 raise ValueError(f"The decay, {value}, must be less than one if optimized_learning is True")
-        self._expt_cache = [None]*TRANSCENDENTAL_CACHE_SIZE
-        self._ln_cache = [None]*TRANSCENDENTAL_CACHE_SIZE
+        self._ln_cache = [None]*LN_CACHE_SIZE
         self._decay = value
         for c in self.values():
             c._clear_base_activation()
@@ -532,7 +531,7 @@ class Memory(dict):
     _similarity_cache = pylru.lrucache(SIMILARITY_CACHE_SIZE)
 
     # possibly update docstrings for retrieve() and blend() to reflect new similarity stuff,
-    # or maybe put it all n set_similarity_function() and/or mismatch?
+    # or maybe put it all in set_similarity_function() and/or mismatch?
     def _similarity(self, x, y, attribute):
         # always returns the "natural" similarity
         # returns None if similarity is inapplicatble to attribute
@@ -613,10 +612,11 @@ class Memory(dict):
         return old
 
     def _cite(self, chunk):
-        if self._optimized_learning:
-            chunk._references += 1
-        else:
-            chunk._references.append(self._time)
+        if not self._optimized_learning:
+            if chunk._reference_count >= chunk._references.size:
+                chunk._references.resize(2 * chunk._references.size, refcheck=False)
+            chunk._references[chunk._reference_count] = self._time
+        chunk._reference_count += 1
         chunk._base_activation_time = None
 
     def forget(self, when, **kwargs):
@@ -637,14 +637,14 @@ class Memory(dict):
         chunk = self.get(signature)
         if not chunk:
             return False
-        if self._optimized_learning:
-            chunk._references -= 1
-        else:
+        if not self._optimized_learning:
             try:
-                chunk._references.remove(when)
-            except ValueError:
+                i = np.where(chunk._references == when)
+            except IndexError:
                 return False
-        if not chunk._references:
+            chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
+        chunk._reference_count -= 1
+        if not chunk._reference_count:
             del self[signature]
         return True
 
@@ -964,7 +964,7 @@ def set_similarity_function(function, *slots):
 
 class Chunk(dict):
 
-    __slots__ = ["_name", "_memory", "_creation", "_references",
+    __slots__ = ["_name", "_memory", "_creation", "_references", "_reference_count",
                  "_base_activation_time", "_base_activation"]
 
     _name_counter = 0;
@@ -975,7 +975,8 @@ class Chunk(dict):
         self._memory = memory
         self.update(content)
         self._creation = memory._time
-        self._references = 0 if memory._optimized_learning else []
+        self._references = np.empty(1, dtype=int)
+        self._reference_count = 0
         self._base_activation_time = None
         self._base_activation = None
 
@@ -994,9 +995,9 @@ class Chunk(dict):
             history = {"name": self._name,
                        "creation_time": self._creation,
                        "attributes": tuple(self.items()),
-                       "references": (self._references
+                       "references": (self._reference_count
                                       if self._memory.optimized_learning
-                                   else tuple(self._references)),
+                                      else tuple(self._references[:self._reference_count])),
                        "base_activation": base,
                        "activation_noise": noise}
             if not for_partial:
@@ -1004,49 +1005,43 @@ class Chunk(dict):
             self._memory._activation_history.append(history)
         return result
 
-    # Note that memoizing expt and ln doesn't make much difference, but it does speed
+    # Note that memoizing ln doesn't make much difference, but it does speed
     # things up a tiny bit, most noticeably under PyPy.
-    # def _cached_expt(self, base):
-    #     try:
-    #         result = self._memory._expt_cache[base]
-    #         if result is None:
-    #             result = math.pow(base, -self._memory._decay)
-    #             self._memory._expt_cache[base] = result
-    #         return result
-    #     except (IndexError, TypeError):
-    #         return math.pow(base, -self._memory._decay)
-
     def _cached_ln(self, arg):
         try:
             result = self._memory._ln_cache[arg]
-            if result is None:
-                result = math.log(arg)
-                self._memory._ln_cache[arg] = result
-            return result
         except (IndexError, TypeError):
             return math.log(arg)
+        if result is None:
+            result = math.log(arg)
+            self._memory._ln_cache[arg] = result
+        return result
 
     def _get_base_activation(self):
         if self._base_activation_time != self._memory.time:
-            try:
-                if self._memory._optimized_learning:
-                    self._base_activation = (self._cached_ln(self._references)
+            err = None
+            if self._memory._optimized_learning:
+                try:
+                    self._base_activation = (self._cached_ln(self._reference_count)
                                              - self._memory._ln_1_mius_d
                                              - self._memory._decay * self._cached_ln(self._memory._time - self._creation))
+                except ValueError as e:
+                    err = e
+            else:
+                base = np.sum((self._memory._time - self._references[0:self._reference_count])
+                              ** -self._memory._decay)
+                if np.isfinite(base):
+                    self._base_activation = math.log(base)
                 else:
-                    refs = np.array(self._references)
-                    self._base_activation = math.log(np.sum((self._memory._time - refs)**-self._memory._decay))
-                    # base = sum(self._cached_expt(self._memory._time - ref)
-                    #            for ref in self._references)
-                    # self._base_activation = math.log(base)
-            except ValueError as e:
+                    err = RuntimeError(f"Non-finite value {base} encounterd when computing base activation")
+            if err:
                 if self._memory._time <= self._creation:
                     raise RuntimeError("Can't compute activation of a chunk at or before the time it was created")
                 elif (not self._memory._optimized_learning
                       and self._references[-1] >= self._memory._time):
                     raise RuntimeError("Can't compute activation of a chunk at or before the time of its most recent reference")
                 else:
-                    raise e
+                    raise err
             self._base_activation_time = self._memory.time
         return self._base_activation
 

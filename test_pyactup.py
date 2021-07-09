@@ -4,6 +4,7 @@ from pyactup import *
 import pyactup
 
 import math
+import numpy as np
 import pytest
 import sys
 
@@ -274,20 +275,6 @@ def test_mismatch():
     with pytest.raises(ValueError):
         m.mismatch = -1
 
-def test_cached_expt():
-    m = Memory()
-    m.learn(a=1)
-    c = m.retrieve(a=1)
-    for d in (0.123, 0.432, 0.897):
-        m.decay = d
-        assert sum(map(bool, m._expt_cache)) == 0
-        assert isclose(c._cached_expt(5), math.pow(5, -d))
-        assert sum(map(bool, m._expt_cache)) == 1
-        for i in range(pyactup.TRANSCENDENTAL_CACHE_SIZE + 10):
-            assert isclose(c._cached_expt(i + 1), math.pow(i + 1, -d))
-        assert isclose(c._cached_expt(d), math.pow(d, -d))
-        assert isclose(c._cached_expt(5), math.pow(5, -d))
-
 def test_cached_ln():
     m = Memory()
     m.learn(a=1)
@@ -298,10 +285,12 @@ def test_cached_ln():
         assert sum(map(bool, m._ln_cache)) == 0
         assert isclose(c._cached_ln(7), math.log(7))
         assert sum(map(bool, m._ln_cache)) == 1
-        for i in range(pyactup.TRANSCENDENTAL_CACHE_SIZE + 10):
+        for i in range(pyactup.LN_CACHE_SIZE + 10):
             assert isclose(c._cached_ln(i + 1), math.log(i + 1))
         assert isclose(c._cached_ln(d), math.log(d))
         assert isclose(c._cached_ln(7), math.log(7))
+
+np.seterr(divide="ignore")
 
 def test_learn_retrieve():
     m = Memory(learning_time_increment=0)
