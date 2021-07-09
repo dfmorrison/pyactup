@@ -639,7 +639,7 @@ class Memory(dict):
             return False
         if not self._optimized_learning:
             try:
-                i = np.where(chunk._references == when)
+                i = np.where(chunk._references == when)[0][0]
             except IndexError:
                 return False
             chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
