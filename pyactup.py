@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "1.1.4.dev1"
+__version__ = "1.1.4"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
