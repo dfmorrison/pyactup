@@ -69,6 +69,8 @@ MINIMUM_TEMPERATURE = 0.01
 
 LN_CACHE_SIZE = 1000
 SIMILARITY_CACHE_SIZE = 10_000
+NOISE_VALUES_SIZE = 1000
+MAXIMUM_RANDOM_SEED = 2**62
 
 class Memory(dict):
     """A cognitive entity containing a collection of learned things, its chunks.
@@ -121,6 +123,10 @@ class Memory(dict):
         self._learning_time_increment = learning_time_increment
         self._retrieval_time_increment = retrieval_time_increment
         self._activation_history = None
+        # Initialize the noise RNG from the parent Python RNG, in case the latter gets seeded for determinancy.
+        self._rng = np.random.default_rng([random.randint(0, MAXIMUM_RANDOM_SEED) for i in range(16)])
+        self._noise_values = None
+        self._next_noise_value = NOISE_VALUES_SIZE
         self.reset(optimized_learning=bool(optimized_learning))
 
     def __repr__(self):
@@ -772,8 +778,11 @@ class Memory(dict):
         else:
             result = None
         if result is None:
-            p = random.uniform(sys.float_info.epsilon, 1 - sys.float_info.epsilon)
-            result = self._noise * math.log((1.0 - p) / p)
+            if self._next_noise_value >= NOISE_VALUES_SIZE:
+                self._noise_values = self._rng.logistic(scale=self._noise, size=NOISE_VALUES_SIZE)
+                self._next_noise_value = 0
+            result = self._noise_values[self._next_noise_value]
+            self._next_noise_value += 1
         if self._activation_noise_cache is not None:
             self._activation_noise_cache[chunk._name] = result
         return result
