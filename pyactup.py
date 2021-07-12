@@ -530,7 +530,7 @@ class Memory(dict):
         return list(self.values())
 
     def print_chunks(self, file=sys.stdout, pretty=True):
-        """Prints descriptions of all the :class:`Chunk`s contained in this :class:`Memory`.
+        """Prints descriptions of all the :class:`Chunk` objects contained in this :class:`Memory`.
         The descriptions are printed to *file*, which defaults to the standard output. If
         *file* is not an open text file it should be a string naming a file to be opened
         for writing.
