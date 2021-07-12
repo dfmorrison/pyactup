@@ -272,6 +272,8 @@ API Reference
 
    .. autoattribute:: current_time
 
+   .. autoattribute:: print_chunks
+
    .. autoattribute:: fixed_noise
 
    .. automethod:: forget

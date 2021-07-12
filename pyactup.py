@@ -43,8 +43,9 @@ if "dev" in __version__:
     print("PyACTUp version", __version__)
 
 import collections.abc as abc
+import csv
+import io
 import math
-import numbers
 import numpy as np
 import operator
 import pylru
@@ -52,6 +53,8 @@ import random
 import sys
 
 from contextlib import contextmanager
+from numbers import Number
+from prettytable import PrettyTable
 from warnings import warn
 
 __all__ = ("Memory", "set_similarity_function", "use_actr_similarity")
@@ -146,7 +149,10 @@ class Memory(dict):
             self._optimized_learning = bool(optimized_learning)
         if preserve_prepopulated:
             for k, v in preserved.items():
-                v._references = 0 if self._optimized_learning else [0]
+                v._references = np.empty(1, dtype=int) if self._optimized_learning else np.array([0])
+                v._reference_count = 1
+                v._base_activation_time = None
+                v._base_activation = None
                 self[k] = v
         self._clear_noise_cache()
 
@@ -512,7 +518,52 @@ class Memory(dict):
                 f"A value assigned to activation_history must be a MutableSequence ({value}).")
 
     @property
+    def chunks(self):
+        """ Returns a :class:`list` of the :class:`Chunk`s contained in this :class:`Memory`.
+        """
+        return list(self.values())
+
+    def print_chunks(self, file=sys.stdout, pretty=True):
+        """Prints descriptions of all the :class:`Chunk`s contained in this :class:`Memory`.
+        The descriptions are printed to *file*, which defaults to the standard output. If
+        *file* is not an open text file it should be a string naming a file to be opened
+        for writing.
+
+        If *pretty* is true, the default, a format intended for reading by humans is used.
+        Otherwise comma separated values (CSV) format, more suitable for importing into
+        spreadsheets, numpy, and the like, is used.
+
+        .. warning::
+            This method is intended as a debugging aid, and generally is not suitable for
+            use as a part of models.
+        """
+        if not self:
+            return
+        if isinstance(file, io.TextIOBase):
+            data = [{"chunk name": c._name,
+                     "chunk contents": dict(k).__repr__()[1:-1],
+                     "chunk created at": c._creation,
+                     "chunk references": (c.references if isinstance(c.references, Number)
+                                          else c.references.__repr__()[1:-1])}
+                    for k, c in self.items()]
+            if pretty:
+                tab = PrettyTable()
+                tab.field_names = data[0].keys()
+                for d in data:
+                    tab.add_row(d.values())
+                print(tab, file=file, flush=True)
+            else:
+                w = csv.DictWriter(file, data[0].keys())
+                w.writeheader()
+                for d in data:
+                    w.writerow(d)
+        else:
+            with open(file, "w+", newline=(None if pretty else "")) as f:
+                self.print_chunks(f, pretty)
+
+    @property
     def optimized_learning(self):
+
         """A boolean indicating whether or not this Memory is configured to use optimized learning.
         Cannot be set directly, but can be changed when calling :meth:`reset`.
 
@@ -642,7 +693,12 @@ class Memory(dict):
                 i = np.where(chunk._references == when)[0][0]
             except IndexError:
                 return False
-            chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
+            if i < chunk._reference_count:
+                chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
+        elif when < chunk._creation:
+            return False
+        elif when == chunk._creation and chunk._reference_count > 1:
+            raise RuntimeError("Can't meaningfully forget a chunk at its creation time with optimized learning")
         chunk._reference_count -= 1
         if not chunk._reference_count:
             del self[signature]
@@ -981,10 +1037,23 @@ class Chunk(dict):
         self._base_activation = None
 
     def __repr__(self):
-        return "<Chunk {} {}>".format(self._name, dict(self))
+        return "<Chunk {} {} {}>".format(self._name, dict(self), self._reference_count)
 
     def __str__(self):
         return self._name
+
+    @property
+    def references(self):
+        """Returns when this :class:`Chunk` has been reinforced.
+        The type of the value returned depends upon whether or not the :class:`Memory`
+        containing it is using optimized learning. If it is this is an integer, the number
+        of times this :class:`Chunk` has been reinforced, and otherwise is a list of times
+        at which it was reinforced.
+        """
+        if self._memory._optimized_learning:
+            return self._reference_count
+        else:
+            return list(self._references[:self._reference_count])
 
     def _activation(self, for_partial=False):
         # Does not include the mismatch penalty component, that's handled by the caller.

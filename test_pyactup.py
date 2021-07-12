@@ -162,6 +162,9 @@ def test_reset():
     m.reset(True)
     assert len(m) == 2
     assert m.time == 0
+    m.learn(species="African Swallow", range="400")
+    m.learn(species="European Swallow", range="300")
+    assert len(m) == 2
     m.reset(False)
     assert len(m) == 0
     assert m.time == 0
@@ -629,3 +632,50 @@ def test_fixed_noise():
         assert ah[i]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
         assert ah[i + N]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
 
+def test_forget():
+    m = Memory()
+    assert not m.forget(0, n=1)
+    m.learn(n=1)
+    assert not m.forget(1, n=1)
+    assert len(m) == 1
+    assert m.forget(0, n=1)
+    assert len(m) == 0
+    m.learn(n=1, s="foo")
+    m.learn(n=2, s="bar")
+    m.learn(n=1, s="foo")
+    assert len(m) == 2
+    assert m.forget(1, n=1, s="foo")
+    assert len(m) == 2
+    assert m.chunks[0].references == [3]
+    m.reset(optimized_learning=True)
+    m.learn(n=1, s="foo")
+    m.learn(n=2, s="bar")
+    m.learn(n=1, s="foo")
+    m.learn(n=1, s="foo")
+    assert m.forget(2, n=1, s="foo")
+    assert len(m) == 2
+    assert m.chunks[0].references == 2
+
+def test_chunks_and_references():
+    m = Memory()
+    assert len(m.chunks) == 0
+    m.learn(n=1)
+    assert len(m.chunks) == 1
+    assert m.chunks[0].references == [0]
+    m.learn(n=2)
+    assert len(m.chunks) == 2
+    m.learn(n=1)
+    assert len(m.chunks) == 2
+    assert m.chunks[0].references == [0, 2]
+    assert m.chunks[1].references == [1]
+    m.reset(optimized_learning=True)
+    assert len(m.chunks) == 0
+    m.learn(n=1)
+    assert len(m.chunks) == 1
+    assert m.chunks[0].references == 1
+    m.learn(n=2)
+    assert len(m.chunks) == 2
+    m.learn(n=1)
+    assert len(m.chunks) == 2
+    assert m.chunks[0].references == 2
+    assert m.chunks[1].references == 1
