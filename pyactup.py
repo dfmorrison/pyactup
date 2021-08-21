@@ -617,13 +617,11 @@ class Memory(dict):
             self._similarity_cache[signature] = result
             return result
 
-    def learn(self, advance=None, **kwargs):
-        """Adds, or reinforces, a chunk in this Memory with the attributes specified by *kwargs*.
-        The attributes, or slots, of a chunk are described using Python keyword arguments.
-        The attribute names must conform to the usual Python variable name syntax, and may
-        be neither Python keywords nor the names of optional arguments to :meth:`learn`,
-        :meth:`retrieve` or :meth:`blend`: *partial*, *reheard* or *advance*. Their
-        values must be :class:`Hashable`.
+    def learn(self, slots, advance=None):
+        """Adds, or reinforces, a chunk in this Memory with the attributes specified by *slots*.
+        The attributes, or slots, of a chunk are described using the :class:`abc.Mapping`
+        *slots*, the keys of which must be non-empty strings and are the attribute names.
+        All the *slots* values should be :class:`Hashable`.
 
         Returns ``True`` if a new chunk has been created, and ``False`` if instead an
         already existing chunk has been re-experienced and thus reinforced.
@@ -637,31 +635,42 @@ class Memory(dict):
         time would have infinite activation.
 
         Raises a :exc:`TypeError` if an attempt is made to learn an attribute value that
-        is not :class:`Hashable`.
+        is not :class:`Hashable`. Raises a :exc:`ValueError` if no *slots* are provided,
+        or if any of the keys of *slots* are not non-empty strings.
 
+        TODO update this example to new API
         >>> m = Memory()
-        >>> m.learn(color="red", size=4)
+        >>> m.learn({"color":"red", "size":4})
         True
-        >>> m.learn(color="blue", size=4)
+        >>> m.learn({"color":"blue", "size":4})
         True
-        >>> m.learn(color="red", size=4)
+        >>> m.learn({"color":"red", "size":4})
         False
-        >>> m.retrieve(color="red")
-        <Chunk 0000 {'color': 'red', 'size': 4}>
+        >>> m.retrieve({"color":"red"})
+        <Chunk 0000 {'color': 'red', 'size': 4} 2>
 
         """
-        if not kwargs:
-            raise ValueError(f"No attributes to learn")
+        slots = Memory._ensure_slots(slots)
+        if not slots:
+            raise ValueError("No attributes provided to learn()")
         created = False
-        signature = tuple(sorted(kwargs.items()))
+        signature = tuple(sorted(slots.items()))
         chunk = self.get(signature)
         if not chunk:
-            chunk = Chunk(self, kwargs)
+            chunk = Chunk(self, slots)
             self[signature] = chunk
             created = True
         self._cite(chunk)
         self._advance(advance, self._learning_time_increment)
         return created
+
+    @staticmethod
+    def _ensure_slots(slots):
+        slots = dict(slots)
+        for name in slots.keys():
+            if not (isinstance(name, str) and len(name) > 0):
+                raise ValueError(f"Attribute name {name} is not a non-empty string")
+        return slots
 
     def _advance(self, argument, default):
         old = self._time
@@ -676,21 +685,22 @@ class Memory(dict):
         chunk._reference_count += 1
         chunk._base_activation_time = None
 
-    def forget(self, when, **kwargs):
+    def forget(self, slots, when):
         """Undoes the operation of a previous call to :meth:`learn`.
 
         .. warning::
             Normally this method should not be used. It does not correspond to a
             biologically plausible process, and is only provided for esoteric purposes.
 
-        The *kwargs* should be those supplied fro the :meth:`learn` operation to be
+        The *slots* should be those supplied for the :meth:`learn` operation to be
         undone, and *when* should be the time that was current when the operation was
         performed. Returns ``True`` if it successfully undoes such an operation, and
         ``False`` otherwise.
         """
-        if not kwargs:
-            raise ValueError(f"No attributes to forget")
-        signature = tuple(sorted(kwargs.items()))
+        slots = Memory._ensure_slots(slots)
+        if not slots:
+            raise ValueError("No attributes provided to forget()")
+        signature = tuple(sorted(slots.items()))
         chunk = self.get(signature)
         if not chunk:
             return False
@@ -710,10 +720,10 @@ class Memory(dict):
             del self[signature]
         return True
 
-    def retrieve(self, partial=False, rehearse=False, advance=None, **kwargs):
-        """Returns the chunk matching the *kwargs* that has the highest activation greater than this Memory's :attr:`threshold`.
+    def retrieve(self, slots={}, partial=False, rehearse=False, advance=None):
+        """Returns the chunk matching the *slots* that has the highest activation greater than this Memory's :attr:`threshold`.
         If there is no such matching chunk returns ``None``.
-        Normally only retrieves chunks exactly matching the *kwargs*; if *partial* is
+        Normally only retrieves chunks exactly matching the *slots*; if *partial* is
         ``True`` it also retrieves those only approximately matching, using similarity
         (see :func:`set_similarity_function`) and :attr:`mismatch` to determine closeness
         of match.
@@ -731,16 +741,17 @@ class Memory(dict):
         extracted with Python's usual subscript notation.
 
         >>> m = Memory()
-        >>> m.learn(widget="thromdibulator", color="red", size=2)
+        >>> m.learn({"widget":"thromdibulator", "color":"red", "size":2})
         True
-        >>> m.learn(widget="snackleizer", color="blue", size=1)
+        >>> m.learn({"widget":"snackleizer", "color":"blue", "size":1})
         True
-        >>> m.retrieve(color="blue")["widget"]
+        >>> m.retrieve({"color":"blue"})["widget"]
         'snackleizer'
         """
+        slots = Memory._ensure_slots(slots)
         old = self._advance(advance, self._retrieval_time_increment)
         try:
-            result = self._partial_match(kwargs) if partial else self._exact_match(kwargs)
+            result = self._partial_match(slots) if partial else self._exact_match(slots)
             if rehearse and result:
                 self._cite(result)
             old = None
@@ -844,11 +855,11 @@ class Memory(dict):
                 best_chunks.add(chunk)
         return random.choice(best_chunks) if best_chunks else None
 
-    def blend(self, outcome_attribute, advance=None, **kwargs):
-        """Returns a blended value for the given attribute of those chunks matching *kwargs*, and which contains *outcome_attribute*.
-        Returns ``None`` if there are no matching chunks that contains
+    def blend(self, outcome_attribute, slots=[], advance=None):
+        """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*.
+        Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
-        value that is not a real number a :exc:`TypeError` is raised.
+        that is not a real number a :exc:`TypeError` is raised.
 
         Before performing the blending operation :meth:`advance` is called with the value
         of *advance* as its argument. If *advance* is not supplied the current value
@@ -857,22 +868,23 @@ class Memory(dict):
         when attempting to perform the blending operation.
 
         >>> m = Memory()
-        >>> m.learn(color="red", size=2)
+        >>> m.learn({"color":"red", "size":2})
         True
-        >>> m.learn(color="blue", size=30)
+        >>> m.learn({"color":"blue", "size":30})
         True
-        >>> m.learn(color="red", size=1)
+        >>> m.learn({"color":"red", "size":1})
         True
-        >>> m.blend("size", color="red")
-        1.1548387620911693
+        >>> m.blend("size", {"color":"red"})
+        1.221272238515685
         """
+        slots = Memory._ensure_slots(slots)
         old = self._advance(advance, self._retrieval_time_increment)
         try:
             weights = 0.0
             weighted_outcomes = 0.0
             if self._activation_history is not None:
                 chunk_weights = []
-            for chunk, activation in self._activations(kwargs):
+            for chunk, activation in self._activations(slots):
                 if outcome_attribute not in chunk:
                     continue
                 weight = math.exp(activation / self._temperature)
@@ -901,11 +913,12 @@ class Memory(dict):
     def best_blend(self, outcome_attribute, iterable, select_attribute=None, advance=None, minimize=False):
         """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
         The extreme value is normally the maximum, but can be made the minimum by setting
-        *minimize* to True. The values returned by *iterable* should be dictionary-like
-        object that can be passed as the *kwargs* argument to :meth:`blend`. The first
-        return value is the *kwargs* value producing the best blended value, and second is
-        that blended value. If there is a tie, with two or more *kwargs* values all
-        producing the same, best blended value, then one of them is chosen randomly. If
+        *minimize* to ``True``. The *iterable* is an :class:`Iterable` of
+        :class:`abc.Mapping` objects, mapping attribute names to values, suitable for
+        passing as the *slots* argument to :meth:`blend`. The first
+        return value is the *iterable* value producing the best blended value, and the
+        second is that blended value. If there is a tie, with two or more *iterable* values
+        all producing the same, best blended value, then one of them is chosen randomly. If
         none of the values from *iterable* result in blended values of *outcome_attribute*
         then both return values are ``None``.
 
@@ -914,9 +927,9 @@ class Memory(dict):
         For the common case where *iterable* iterates over only the values of a single
         slot the *select_attribute* parameter may be used to simplify the iteration. If
         *select_attribute* is supplied and is not ``None`` then *iterable* should produce
-        values of that slot instead of dictionary-like objects. Similarly the first return
-        value will be the slot value rather than a dictionary-like object. The end of the
-        example below demonstrates this.
+        values of that attribute instead of :class:`abc.Mapping` objects. Similarly the
+        first return value will be the attribute value rather than a :class:`abc.Mapping`
+        object. The end of the example below demonstrates this.
 
         Before performing the blending operations :meth:`advance` is called, only once,
         with the value of *advance* as its argument. If *advance* is not supplied the
@@ -925,21 +938,20 @@ class Memory(dict):
         error is raised when attempting to perform a blending operation.
 
         >>> m = Memory()
-        >>> m.learn(color="red", utility=1)
+        >>> m.learn({"color":"red", "utility":1})
         True
-        >>> m.learn(color="blue", utility=2)
+        >>> m.learn({"color":"blue", "utility":2})
         True
-        >>> m.learn(color="red", utility=1.8)
+        >>> m.learn({"color":"red", "utility":1.8})
         True
-        >>> m.learn(color="blue", utility=0.9)
+        >>> m.learn({"color":"blue", "utility":0.9})
         True
         >>> m.best_blend("utility", ({"color": c} for c in ("red", "blue")))
-        ({'color': 'blue'}, 1.4868)
-        >>> m.learn(color="blue", utility=-1)
+        ({'color': 'blue'}, 1.5149259914576285)
+        >>> m.learn({"color":"blue", "utility":-1})
         True
         >>> m.best_blend("utility", ("red", "blue"), "color")
-        ('red', 1.2127)
-
+        ('red', 1.060842632215651)
         """
         comparator = operator.gt if not minimize else operator.lt
         old = self._advance(advance, self._retrieval_time_increment)
@@ -948,16 +960,16 @@ class Memory(dict):
             best_args = []
             for thing in iterable:
                 if select_attribute is not None:
-                    kwargs = { select_attribute : thing }
+                    slots = { select_attribute : thing }
                 else:
-                    kwargs = thing
-                value = self.blend(outcome_attribute, advance=0, **kwargs)
+                    slots = thing
+                value = self.blend(outcome_attribute, slots, advance=0)
                 if value is None:
                     pass
                 elif value == best_value:
-                    best_args.append(kwargs)
+                    best_args.append(slots)
                 elif comparator(value, best_value):
-                    best_args = [ kwargs ]
+                    best_args = [ slots ]
                     best_value = value
             old = None
             if best_args:
@@ -997,9 +1009,10 @@ def use_actr_similarity(value=None):
         Memory._use_actr_similarity = bool(value)
     return Memory._use_actr_similarity
 
-def set_similarity_function(function, *slots):
-    """Assigns a similarity function to be used when comparing attribute values with the given names.
-    The function should take two arguments, and return a real number between 0 and 1,
+def set_similarity_function(function, attributes, weight=1):
+    """Assigns a similarity function to be used when comparing attribute values with the given *attributes*.
+    The *attributes* should be an :class:`Iterable` of strings, attribute names.
+    The *function* should take two arguments, and return a real number between 0 and 1,
     inclusive.
     The function should be commutative; that is, if called with the same arguments
     in the reverse order, it should return the same value.
@@ -1008,6 +1021,8 @@ def set_similarity_function(function, *slots):
     No error is raised if either of these constraints is violated, but the results
     will, in most cases, be meaningless if they are.
 
+    TODO implement and document weights
+
     If ``True`` is supplied as the *function* a default similarity function is used that
     returns one if its two arguments are ``==`` and zero otherwise.
 
@@ -1015,9 +1030,9 @@ def set_similarity_function(function, *slots):
     ...     if y < x:
     ...         return f(y, x)
     ...     return 1 - (y - x) / y
-    >>> set_similarity_function(f, "length", "width")
+    >>> set_similarity_function(f, ["length", "width"])
     """
-    for s in slots:
+    for s in attributes:
         if callable(function):
             Memory._similarity_functions[s] = function
         elif function:

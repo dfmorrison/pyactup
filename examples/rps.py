@@ -12,7 +12,7 @@ m = pyactup.Memory(noise=0.1)
 def defeat_expectation(**kwargs):
     # Generate expectation matching supplied conditions and play the move that defeats.
     # If no expectation can be generate, chooses a move randomly.
-    expectation = (m.retrieve(**kwargs) or {}).get("move")
+    expectation = (m.retrieve(kwargs) or {}).get("move")
     if expectation:
         return MOVES[(MOVES.index(expectation) - 1) % N_MOVES]
     else:
@@ -40,14 +40,16 @@ def main(rounds=DEFAULT_ROUNDS):
         score += -1 if winner == 2 else winner
         print("Round {:3d}\tPlayer 1: {:8s}\tPlayer 2: {:8s}\tWinner: {}\tScore: {:4d}".format(
             r, move1, move2, winner, score))
-        m.learn(player="player1",
-                ultimate=safe_element(plays1, -1),
-                penultimate=safe_element(plays1, -2),
-                move=move1)
-        m.learn(player="player2", ultimate=safe_element(plays2, -1), move=move2)
+        m.learn({"player": "player1",
+                 "ultimate": safe_element(plays1, -1),
+                 "penultimate": safe_element(plays1, -2),
+                 "move": move1},
+                advance=0)
+        m.learn({"player": "player2",
+                 "ultimate": safe_element(plays2, -1),
+                 "move": move2})
         plays1.append(move1)
         plays2.append(move2)
-        m.advance()
 
 
 if __name__ == '__main__':

@@ -14,7 +14,7 @@ for p in tqdm(range(PARTICIPANTS)):
     m.reset()
     # prepopulate some instances to ensure initial exploration
     for c, o in (("safe", 1), ("risky", 0), ("risky", 2)):
-        m.learn(choice=c, outcome=o, advance=0)
+        m.learn({"choice": c, "outcome": o}, advance=0)
     m.advance()
     for r in range(ROUNDS):
         choice, bv = m.best_blend("outcome", ("safe", "risky"), "choice")
@@ -23,7 +23,7 @@ for p in tqdm(range(PARTICIPANTS)):
             risky_chosen[r] += 1
         else:
             payoff = 1
-        m.learn(choice=choice, outcome=payoff)
+        m.learn({"choice": choice, "outcome": payoff})
 
 plt.plot(range(ROUNDS), [ v / PARTICIPANTS for v in risky_chosen])
 plt.ylim([0, 1])

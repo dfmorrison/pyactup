@@ -5,6 +5,12 @@ PyACTUp version 2.0
    :maxdepth: 3
    :caption: Contents:
 
+.. note::
+    The argument signatures of several common methods have been changed in version 2.0. Existing models
+    written for earlier versions of PyACTUp will need to be updated, typically by making relatively
+    simple syntactic changes to the relevant calls. See :ref:`upgrading` for details.
+
+
 
 Introduction
 ============
@@ -193,7 +199,7 @@ function ``use_actr_similarity`` with an argument of ``True``, resulting in the 
 
 The ``set_similarity_function`` defines how to compute the similarity of values for a particular attribute.
 
-.. 
+..
    function ``set_similarity_function`` or the Memory method ``set_similarity``. If neither has been
    used in a way applicable to the two chunks being compared their similarity is one if they are the same
    chunk, and otherwise zero.
@@ -270,6 +276,8 @@ API Reference
 
    .. autoattribute:: optimized_learning
 
+   .. autoattribute:: chunks
+
    .. automethod:: print_chunks
 
    .. autoattribute:: current_time
@@ -312,7 +320,7 @@ prior history they consider in creating their expectations.
     def defeat_expectation(**kwargs):
         # Generate expectation matching supplied conditions and play the move that defeats.
         # If no expectation can be generate, chooses a move randomly.
-        expectation = (m.retrieve(**kwargs) or {}).get("move")
+        expectation = (m.retrieve(kwargs) or {}).get("move")
         if expectation:
             return MOVES[(MOVES.index(expectation) - 1) % N_MOVES]
         else:
@@ -340,14 +348,16 @@ prior history they consider in creating their expectations.
             score += -1 if winner == 2 else winner
             print("Round {:3d}\tPlayer 1: {:8s}\tPlayer 2: {:8s}\tWinner: {}\tScore: {:4d}".format(
                 r, move1, move2, winner, score))
-            m.learn(player="player1",
-                    ultimate=safe_element(plays1, -1),
-                    penultimate=safe_element(plays1, -2),
-                    move=move1)
-            m.learn(player="player2", ultimate=safe_element(plays2, -1), move=move2)
+            m.learn({"player": "player1",
+                     "ultimate": safe_element(plays1, -1),
+                     "penultimate": safe_element(plays1, -2),
+                     "move": move1},
+                    advance=0)
+            m.learn({"player": "player2",
+                     "ultimate": safe_element(plays2, -1),
+                     "move": move2})
             plays1.append(move1)
             plays2.append(move2)
-            m.advance()
 
 
     if __name__ == '__main__':
@@ -477,7 +487,7 @@ This code uses two other Python packages, `matplotlib <https://matplotlib.org/>`
 and `tqdm <https://tqdm.github.io/>`_.
 Neither is actually used by the model proper, and the code can be rearranged to dispense with
 them, if preferred. ``Matplotlib`` is used to draw a graph of the results, and ``tqdm``
-to display a progress indicator, as this example takes on the order of twenty seconds to run
+to display a progress indicator, as this example takes on the order of a minuyte to run
 in CPython.
 
 .. code-block:: python
@@ -499,7 +509,7 @@ in CPython.
         m.reset()
         # prepopulate some instances to ensure initial exploration
         for c, o in (("safe", 1), ("risky", 0), ("risky", 2)):
-            m.learn(choice=c, outcome=o, advance=0)
+            m.learn({"choice": c, "outcome": o}, advance=0)
         m.advance()
         for r in range(ROUNDS):
             choice, bv = m.best_blend("outcome", ("safe", "risky"), "choice")
@@ -508,7 +518,7 @@ in CPython.
                 risky_chosen[r] += 1
             else:
                 payoff = 1
-            m.learn(choice=choice, outcome=payoff)
+            m.learn({"choice": choice, "outcome": payoff})
 
     plt.plot(range(ROUNDS), [ v / PARTICIPANTS for v in risky_chosen])
     plt.ylim([0, 1])
@@ -521,9 +531,74 @@ The result of running this is
 
     .. image:: safe_risky_graph.png
 
-
-
 .. [#f3] Cleotilde Gonzalez, Javier F. Lerch and Christian Lebiere (2003),
          `Instance-based learning in dynamic decision making,
          <http://www.sciencedirect.com/science/article/pii/S0364021303000314>`_
          *Cognitive Science*, *27*, 591-635. DOI: 10.1016/S0364-0213(03)00031-4.
+
+
+Changes to PyACTUp
+==================
+
+.. _upgrading:
+
+Changes between versions 1.1.4 and 2.0
+--------------------------------------
+
+* Changed the arguments to learn(), forget(), retrieve(), blend() and set_similarity_function().
+* General tidying and minor bug fixes.
+
+When upgrading existinig 1.x models to version 2.0 or later some syntactic changes will nearly always have to be made,
+in particular to calls to :meth:`learn`, :meth:`retrieve` and :meth:`blend`. What in 1.x were expressed (mis)using keyword
+arguments are now passed as a single argument, typically a dictionary. In most cases this simply requires wrapping
+curly braces around the relevant arguments, quote marks around the attribute/slot names, and replacing the equals
+signs by colons. If real keyword arguments, such as ``advance=``, are used they should all be moved after the dictionary.
+Note that it is now no longer necessary to avoid using Python keywords or possible keyword arguments of the various
+methods as attribute names. And this change also allows sensible extension of the PyACTUp API by adding further keyword
+arguments to the relevant methods.
+
+If you are using partial matching you will also have to update calls to :func:`set_similarity_function`, the attributes
+names now being passed as a list or other iterable. Typically this simply just requires adding square brackets around
+the attribute names.
+
+For example, what in 1.x would have been expressed as
+
+.. code-block:: python
+
+    set_similarity_function(cubic_similarity, "weight", "volume")
+    m.learn(color="red", size=4)
+    x = m.retrieve(color="blue")
+    bv = m.blend("size“, color="green")
+
+becomes in 2.x
+
+.. code-block:: python
+
+    set_similarity_function(cubic_similarity, ["weight", "volume"])
+    m.learn({"color": "red", "size": 4})
+    x = m.retrieve({"color": "blue"})
+    bv = m.blend("size", {"color": "green"})
+
+
+Changes between versions 1.1.3 and 1.1.4
+----------------------------------------
+
+* Changed the underlying representation of chunks and now use numpy to compute base activations, speeding up some models.
+* Added chunks attribute and print_chunks() method.
+
+
+Changes between versions 1.0.9 and 1.1.3
+----------------------------------------
+
+* Added current_time and fixed_noise conext managers.
+* PyACTUp now requires Python version 3.7 or later.
+
+
+Changes between versions 1.0 and 1.0.9
+--------------------------------------
+
+* Allow disabling base level activation.
+* Cache similarity computations.
+* Add rehearse parameter to retrieve() method.
+* Add best_blend() method.
+* Add preserve_prepopulated argument to reset().

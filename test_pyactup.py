@@ -91,24 +91,24 @@ def test_time():
         m.advance(-0.001)
     assert isclose(m.time, 13.5)
     m.reset()
-    m.learn(foo=1)
+    m.learn({"foo":1})
     assert m.time == 1
-    m.learn(foo=2, advance=2)
+    m.learn({"foo":2}, advance=2)
     assert m.time == 3
-    m.learn(foo=3, advance=0)
+    m.learn({"foo":3}, advance=0)
     assert m.time == 3
-    m.retrieve(advance=7, foo=3)
+    m.retrieve({"foo":3}, advance=7)
     assert m.time == 10
-    m.retrieve(foo=3)
+    m.retrieve({"foo":3})
     assert m.time == 10
     m.blend("foo", advance=1)
     assert m.time == 11
     with pytest.raises(ValueError):
-        m.learn(foo=9, advance=-0.1)
+        m.learn({"foo":9}, advance=-0.1)
     with pytest.raises(ValueError):
-        m.retrieve(foo=9, advance=-10)
+        m.retrieve({"foo":9}, advance=-10)
     with pytest.raises(ValueError):
-        m.retrieve(partial=True, foo=9, advance=-10)
+        m.retrieve({"foo":9}, advance=-10, partial=True)
     with pytest.raises(ValueError):
         m.blend("foo", advance=-11)
 
@@ -116,13 +116,13 @@ def test_reset():
     m = Memory(learning_time_increment=0)
     assert m.optimized_learning == False
     assert m.time == 0
-    m.learn(species="African Swallow", range="400")
+    m.learn({"species":"African Swallow", "range":"400"})
     assert len(m) == 1
     assert m.time == 0
-    m.learn(species="European Swallow", range="300")
+    m.learn({"species":"European Swallow", "range":"300"})
     assert len(m) == 2
     assert m.time == 0
-    m.learn(species="African Swallow", range="400")
+    m.learn({"species":"African Swallow", "range":"400"})
     assert len(m) == 2
     assert m.time == 0
     m.reset()
@@ -138,14 +138,14 @@ def test_reset():
     assert m.optimized_learning == True
     assert len(m) == 0
     assert m.time == 0
-    m.learn(species="African Swallow", range="400")
+    m.learn({"species":"African Swallow", "range":"400"})
     assert len(m) == 1
     assert m.time == 0
-    m.learn(species="European Swallow", range="300")
+    m.learn({"species":"European Swallow", "range":"300"})
     m.advance()
     assert len(m) == 2
     assert m.time == 1
-    m.learn(species="African Swallow", range="400")
+    m.learn({"species":"African Swallow", "range":"400"})
     m.advance()
     assert len(m) == 2
     assert m.time == 2
@@ -153,17 +153,17 @@ def test_reset():
     assert m.optimized_learning == False
     assert len(m) == 0
     assert m.time == 0
-    m.learn(species="African Swallow", range="400")
-    m.learn(species="European Swallow", range="300")
+    m.learn({"species":"African Swallow", "range":"400"})
+    m.learn({"species":"European Swallow", "range":"300"})
     m.advance()
-    m.learn(species="Python", range="300")
+    m.learn({"species":"Python", "range":"300"})
     assert len(m) == 3
     assert m.time == 1
     m.reset(True)
     assert len(m) == 2
     assert m.time == 0
-    m.learn(species="African Swallow", range="400")
-    m.learn(species="European Swallow", range="300")
+    m.learn({"species":"African Swallow", "range":"400"})
+    m.learn({"species":"European Swallow", "range":"300"})
     assert len(m) == 2
     m.reset(False)
     assert len(m) == 0
@@ -230,24 +230,24 @@ def test_decay():
     m.temperature = 1
     m.noise = 0
     m.decay = 0
-    m.learn(foo=1)
+    m.learn({"foo":1})
     m.advance(3)
     assert m.time == 4
-    m.learn(foo=1, advance=0)
+    m.learn({"foo":1}, advance=0)
     m.advance(7)
-    c = m.retrieve(foo=1)
+    c = m.retrieve({"foo":1})
     assert isclose(c._activation(), 0.6931471805599453)
     m.decay = None
     assert c._activation() == 0
     m.decay = 0.8
     assert isclose(c._activation(), -1.0281200094565899)
     m.reset(optimized_learning=True)
-    m.learn(foo=1, advance=0)
+    m.learn({"foo":1}, advance=0)
     m.advance(4)
     m.learning_time_increment = 0
-    m.learn(foo=1)
+    m.learn({"foo":1})
     m.advance(7)
-    c = m.retrieve(foo=1)
+    c = m.retrieve({"foo":1})
     assert isclose(c._activation(), 0.3842688747553493)
     m.decay = None
     assert c._activation() == 0
@@ -280,9 +280,9 @@ def test_mismatch():
 
 def test_cached_ln():
     m = Memory()
-    m.learn(a=1)
+    m.learn({"a":1})
     m.advance()
-    c = m.retrieve(a=1)
+    c = m.retrieve({"a":1})
     for d in (0.123, 0.432, 0.897):
         m.decay = d
         assert sum(map(bool, m._ln_cache)) == 0
@@ -297,46 +297,46 @@ np.seterr(divide="ignore")
 
 def test_learn_retrieve():
     m = Memory(learning_time_increment=0)
-    m.learn(a=1, b="x")
-    m.learn(a=2, b="y")
-    m.learn(a=3, b="z")
+    m.learn({"a":1, "b":"x"})
+    m.learn({"a":2, "b":"y"})
+    m.learn({"a":3, "b":"z"})
     m.advance()
-    assert m.retrieve(a=2)["b"] == "y"
-    assert m.retrieve(a=4) is None
-    m.learn(a=4, b="x")
+    assert m.retrieve({"a":2})["b"] == "y"
+    assert m.retrieve({"a":4}) is None
+    m.learn({"a":4, "b":"x"})
     with pytest.raises(RuntimeError):
-        m.retrieve(a=4)
+        m.retrieve({"a":4})
     m.advance()
-    assert m.retrieve(a=4)["b"] == "x"
-    assert isclose(sum(m.retrieve(b="x")["a"] == 4 for i in range(1000)) / 1000, 0.71, rel_tol=0.1)
+    assert m.retrieve({"a":4})["b"] == "x"
+    assert isclose(sum(m.retrieve({"b":"x"})["a"] == 4 for i in range(1000)) / 1000, 0.71, rel_tol=0.1)
     with pytest.raises(TypeError):
-        m.learn(a=[1, 2])
+        m.learn({"a":[1, 2]})
     m.reset()
-    m.learn(color="red", size=1)
+    m.learn({"color":"red", "size":1})
     m.advance()
-    m.learn(color="blue", size=1)
+    m.learn({"color":"blue", "size":1})
     m.advance()
-    m.learn(color="red", size=2)
+    m.learn({"color":"red", "size":2})
     m.advance(100)
-    m.learn(color="red", size=1)
+    m.learn({"color":"red", "size":1})
     m.advance()
-    m.learn(color="red", size=1)
+    m.learn({"color":"red", "size":1})
     m.advance()
-    assert sum(m.retrieve(color="red")["size"] == 1 for i in range(100)) > 95
-    m.retrieve(rehearse=True, size=2)
+    assert sum(m.retrieve({"color":"red"})["size"] == 1 for i in range(100)) > 95
+    m.retrieve({"size":2}, rehearse=True)
     m.advance()
-    assert sum(m.retrieve(color="red")["size"] == 1 for i in range(100)) < 95
-    m.learn(color="red", size=1)
+    assert sum(m.retrieve({"color":"red"})["size"] == 1 for i in range(100)) < 95
+    m.learn({"color":"red", "size":1})
     with pytest.raises(RuntimeError):
-        m.retrieve(color="red")
+        m.retrieve({"color":"red"})
 
 def test_similarity():
     def sim(x, y):
         if y < x:
             return sim(y, x)
         return 1 - (y - x) / y
-    set_similarity_function(sim, "a")
-    set_similarity_function(True, "b")
+    set_similarity_function(sim, ["a"])
+    set_similarity_function(True, ["b"])
     m = Memory(mismatch=1)
     assert len(Memory._similarity_cache) == 0
     assert isclose(m._similarity(3, 3, "a"), 1)
@@ -345,7 +345,7 @@ def test_similarity():
     assert len(Memory._similarity_cache) == 0
     assert isclose(m._similarity(3, 4, "a"), 0.75)
     assert len(Memory._similarity_cache) == 1
-    set_similarity_function(lambda x, y: sim(x, y) / 3, "a")
+    set_similarity_function(lambda x, y: sim(x, y) / 3, ["a"])
     assert len(Memory._similarity_cache) == 0
     assert isclose(m._similarity(4, 3, "a"), 0.25)
     assert len(Memory._similarity_cache) == 1
@@ -354,7 +354,7 @@ def test_similarity():
     assert use_actr_similarity() == False
     use_actr_similarity(True)
     assert use_actr_similarity() == True
-    set_similarity_function(lambda x, y: sim(x, y) - 1, "a")
+    set_similarity_function(lambda x, y: sim(x, y) - 1, ["a"])
     assert len(Memory._similarity_cache) == 0
     assert isclose(m._similarity(3, 3, "a"), 1)
     assert isclose(m._similarity(4, 3, "b"), 0)
@@ -371,40 +371,40 @@ def test_retrieve_partial():
         return sim(x, y) - 1
     set_similarity_function(sim, "a")
     m = Memory(mismatch=1, noise=0, temperature=1, learning_time_increment=0)
-    m.learn(a=1, b="x")
-    m.learn(a=2, b="y")
-    m.learn(a=3, b="z")
-    m.learn(a=4, b="x")
+    m.learn({"a":1, "b":"x"})
+    m.learn({"a":2, "b":"y"})
+    m.learn({"a":3, "b":"z"})
+    m.learn({"a":4, "b":"x"})
     m.advance()
-    assert m.retrieve(a=2.9) is None
-    assert m.retrieve(True, a=3.5)["b"] == "x"
-    assert m.retrieve(True, a=3.1)["b"] == "z"
-    assert m.retrieve(True, a=2.4)["b"] == "y"
+    assert m.retrieve({"a":2.9}) is None
+    assert m.retrieve({"a":3.5}, True)["b"] == "x"
+    assert m.retrieve({"a":3.1}, True)["b"] == "z"
+    assert m.retrieve({"a":2.4}, True)["b"] == "y"
     use_actr_similarity(True)
     set_similarity_function(sim2, "a")
-    assert m.retrieve(a=2.9) is None
-    assert m.retrieve(True, a=3.5)["b"] == "x"
-    assert m.retrieve(True, a=3.1)["b"] == "z"
-    assert m.retrieve(True, a=2.4)["b"] == "y"
+    assert m.retrieve({"a":2.9}) is None
+    assert m.retrieve({"a":3.5}, True)["b"] == "x"
+    assert m.retrieve({"a":3.1}, True)["b"] == "z"
+    assert m.retrieve({"a":2.4}, True)["b"] == "y"
     use_actr_similarity(False)
 
 def test_blend():
     m = Memory(temperature=1, noise=0, learning_time_increment=0)
-    m.learn(a=1, b=1)
-    m.learn(a=2, b=2)
+    m.learn({"a":1, "b":1})
+    m.learn({"a":2, "b":2})
     m.advance()
-    assert isclose(m.blend("b", a=1), 1)
-    assert isclose(m.blend("b", a=2), 2)
+    assert isclose(m.blend("b", {"a":1}), 1)
+    assert isclose(m.blend("b", {"a":2}), 2)
     assert isclose(m.blend("b"), 1.5)
-    m.learn(a=1, b=1)
+    m.learn({"a":1, "b":1})
     m.advance()
-    assert isclose(m.blend("b", a=1), 1)
-    assert isclose(m.blend("b", a=2), 2)
+    assert isclose(m.blend("b", {"a":1}), 1)
+    assert isclose(m.blend("b", {"a":2}), 2)
     assert isclose(m.blend("b"), 1.2928932188134525)
-    m.learn(a=1, b=2)
+    m.learn({"a":1, "b":2})
     m.advance()
-    assert isclose(m.blend("b", a=1), 1.437740775137503)
-    assert isclose(m.blend("b", a=2), 2)
+    assert isclose(m.blend("b", {"a":1}), 1.437740775137503)
+    assert isclose(m.blend("b", {"a":2}), 2)
     assert isclose(m.blend("b"), 1.5511727705794482)
     assert isclose(m.blend("a"), 1.2017432359063303)
     m.activation_history = []
@@ -415,19 +415,19 @@ def test_blend():
     assert isclose(c["retrieval_probability"], 0.20174323590633028)
     c = next(d for d in m.activation_history if d["attributes"] == (("a", 1), ("b", 2)))
     assert isclose(c["retrieval_probability"], 0.34942953467311794)
-    m.learn(a="mumble", b=1)
+    m.learn({"a":"mumble"," b":1})
     m.advance()
     with pytest.raises(TypeError):
         m.blend("a", b=1)
 
 def test_best_blend():
     m = Memory(temperature=1, noise=0, learning_time_increment=1)
-    m.learn(u=0, x="a", y=1)
-    m.learn(u=1, x="b", y=2)
-    m.learn(u=-1, x="a", y=2)
-    m.learn(u=0.5, x="b", y=1)
-    m.learn(u=1, x="a", y=1)
-    m.learn(u=-0.2, x="b", y=1)
+    m.learn({"u":0, "x":"a","y":1})
+    m.learn({"u":1, "x":"b","y":2})
+    m.learn({"u":-1, "x":"a","y":2})
+    m.learn({"u":0.5, "x":"b","y":1})
+    m.learn({"u":1, "x":"a", "y":1})
+    m.learn({"u":-0.2, "x":"b", "y":1})
     a, v = m.best_blend("u", ({"x": x} for x in "ab"))
     assert a["x"] == "b"
     assert isclose(v, 0.26469341839060034)
@@ -450,12 +450,12 @@ def test_best_blend():
     assert a == "a"
     assert isclose(v, 0.128211304635919)
     m = Memory(temperature=0.35, noise=0.25, learning_time_increment=1)
-    m.learn(u=0, x="a")
-    m.learn(u=1, x="b")
-    m.learn(u=-1, x="a")
-    m.learn(u=0.5, x="b")
-    m.learn(u=1, x="a")
-    m.learn(u=-0.2, x="b")
+    m.learn({"u":0, "x":"a"})
+    m.learn({"u":1, "x":"b"})
+    m.learn({"u":-1, "x":"a"})
+    m.learn({"u":0.5, "x":"b"})
+    m.learn({"u":1, "x":"a"})
+    m.learn({"u":-0.2, "x":"b"})
     assert 500 < sum(m.best_blend("u", ({"x": x} for x in "ab"))[0]["x"] == "a" for i in range(1000)) < 800
     assert m.time == 6
     m.best_blend("u", ({"x": x} for x in "ab"))
@@ -467,7 +467,7 @@ def test_best_blend():
     assert m.time == 8
     m.best_blend("u", "ab", select_attribute="x", advance=0)
     assert m.time == 8
-    m.learn(u="not a number", x="a")
+    m.learn({"u":"not a number", "x":"a"})
     assert m.time == 9
     with pytest.raises(TypeError):
         m.best_blend("u", "ab", "x", advance=1)
@@ -480,10 +480,10 @@ def test_best_blend():
 
 def test_mixed_slots():
     m = Memory(temperature=1, noise=0)
-    m.learn(decision="A", color="red", size=1, utility=0)
-    m.learn(decision="A", color="blue", size=4, utility=100)
-    m.learn(decision="A", color="red", size=3, utility=10)
-    m.learn(decision="B", color="red", size=3, utility=50)
+    m.learn({"decision":"A", "color":"red", "size":1, "utility":0})
+    m.learn({"decision":"A", "color":"blue", "size":4, "utility":100})
+    m.learn({"decision":"A", "color":"red", "size":3, "utility":10})
+    m.learn({"decision":"B", "color":"red", "size":3, "utility":50})
 
     def run_once(d_ret_u=0, d_ret_a=0, d_ret_m=None,
                  c_ret_u=0, c_ret_a=0, c_ret_m=None,
@@ -495,7 +495,7 @@ def test_mixed_slots():
                  print_only=False): # print_only=True useful for debugging, etc.
         ah = []
         m.activation_history = ah
-        r = m.retrieve(partial=True, decision="A")
+        r = m.retrieve({"decision":"A"}, partial=True)
         mp = ah[-1].get("mismatch")
         if print_only:
             print("d_ret_u =", r["utility"], ", d_ret_a =", ah[-1]["activation"], ", d_ret_m =", mp)
@@ -505,7 +505,7 @@ def test_mixed_slots():
             assert mp is d_ret_m or isclose(mp, d_ret_m)
 
         ah.clear()
-        r = m.retrieve(partial=True, color="red")
+        r = m.retrieve({"color":"red"}, partial=True)
         mp = ah[-1].get("mismatch")
         if print_only:
             print("c_ret_u =", r["utility"], ", c_ret_a =", ah[-1]["activation"],  ", c_ret_m = ", mp)
@@ -515,7 +515,7 @@ def test_mixed_slots():
             assert mp is c_ret_m or isclose(mp, c_ret_m)
 
         ah.clear()
-        b = m.blend("utility", decision="A")
+        b = m.blend("utility", {"decision":"A"})
         mp = ah[-1].get("mismatch")
         if print_only:
             print("d_blnd_u =", b, ", d_blnd_a =", ah[-1]["activation"], ", d_blnd_m =", mp)
@@ -525,7 +525,7 @@ def test_mixed_slots():
             assert mp is d_blnd_m or isclose(mp, d_blnd_m)
 
         ah.clear()
-        b = m.blend("utility", color="red")
+        b = m.blend("utility", {"color":"red"})
         mp = ah[-1].get("mismatch")
         if print_only:
             print("c_blnd_u =", b, ", c_blnd_a =", ah[-1]["activation"], ", c_blnd_m =", mp)
@@ -535,7 +535,7 @@ def test_mixed_slots():
             assert mp is c_blnd_m or isclose(mp, c_blnd_m)
 
         ah.clear()
-        b = m.blend("utility", size=2)
+        b = m.blend("utility", {"size":2})
         mp = ah[-1].get("mismatch") if ah else None
         if print_only:
             print("s_blnd_u =", b, ", s_blnd_a =", ah and ah[-1]["activation"], ", s_blnd_m =", mp)
@@ -581,7 +581,7 @@ def test_mixed_slots():
              None, None, None,
              "B", 50, 0, 0,
              "B", 100, -0.5493061443340549, 0)
-    set_similarity_function(True, "color")
+    set_similarity_function(True, ["color"])
     run_once(10, -0.3465735902799726, 0,
              50, 0, 0,
              36.31698208548453, -0.3465735902799726, 0,
@@ -589,7 +589,7 @@ def test_mixed_slots():
              None, None, None,
              "B", 50, 0, 0,
              "B", 56.669062843109664, -1, -1)
-    set_similarity_function(lambda x, y: 1 - abs(x - y) / 4, "size")
+    set_similarity_function(lambda x, y: 1 - abs(x - y) / 4, ["size"])
     run_once(10, -0.3465735902799726, 0,
              50, 0, 0,
              36.31698208548453, -0.3465735902799726, 0,
@@ -602,7 +602,7 @@ def test_fixed_noise():
     N = 300
     m = Memory()
     for i in range(N):
-        m.learn(n=i)
+        m.learn({"n":i})
     ah = []
     m.activation_history = ah
     m.retrieve()
@@ -634,48 +634,48 @@ def test_fixed_noise():
 
 def test_forget():
     m = Memory()
-    assert not m.forget(0, n=1)
-    m.learn(n=1)
-    assert not m.forget(1, n=1)
+    assert not m.forget({"n":1}, 0)
+    m.learn({"n":1})
+    assert not m.forget({"n":1}, 1)
     assert len(m) == 1
-    assert m.forget(0, n=1)
+    assert m.forget({"n":1}, 0)
     assert len(m) == 0
-    m.learn(n=1, s="foo")
-    m.learn(n=2, s="bar")
-    m.learn(n=1, s="foo")
+    m.learn({"n":1, "s":"foo"})
+    m.learn({"n":2, "s":"bar"})
+    m.learn({"n":1, "s":"foo"})
     assert len(m) == 2
-    assert m.forget(1, n=1, s="foo")
+    assert m.forget({"n":1, "s":"foo"}, 1)
     assert len(m) == 2
     assert m.chunks[0].references == [3]
     m.reset(optimized_learning=True)
-    m.learn(n=1, s="foo")
-    m.learn(n=2, s="bar")
-    m.learn(n=1, s="foo")
-    m.learn(n=1, s="foo")
-    assert m.forget(2, n=1, s="foo")
+    m.learn({"n":1, "s":"foo"})
+    m.learn({"n":2, "s":"bar"})
+    m.learn({"n":1, "s":"foo"})
+    m.learn({"n":1, "s":"foo"})
+    assert m.forget({"n":1, "s":"foo"}, 2)
     assert len(m) == 2
     assert m.chunks[0].references == 2
 
 def test_chunks_and_references():
     m = Memory()
     assert len(m.chunks) == 0
-    m.learn(n=1)
+    m.learn({"n":1})
     assert len(m.chunks) == 1
     assert m.chunks[0].references == [0]
-    m.learn(n=2)
+    m.learn({"n":2})
     assert len(m.chunks) == 2
-    m.learn(n=1)
+    m.learn({"n":1})
     assert len(m.chunks) == 2
     assert m.chunks[0].references == [0, 2]
     assert m.chunks[1].references == [1]
     m.reset(optimized_learning=True)
     assert len(m.chunks) == 0
-    m.learn(n=1)
+    m.learn({"n":1})
     assert len(m.chunks) == 1
     assert m.chunks[0].references == 1
-    m.learn(n=2)
+    m.learn({"n":2})
     assert len(m.chunks) == 2
-    m.learn(n=1)
+    m.learn({"n":1})
     assert len(m.chunks) == 2
     assert m.chunks[0].references == 2
     assert m.chunks[1].references == 1
