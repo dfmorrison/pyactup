@@ -6,10 +6,12 @@ import pyactup
 import math
 import numpy as np
 import pytest
+import random
 import sys
 
 from math import isclose
 from pprint import pprint
+from time import time
 
 def test_parameter_manipulation():
     m = Memory()
@@ -469,7 +471,7 @@ def test_best_blend():
     assert m.time == 8
     m.learn({"u":"not a number", "x":"a"})
     assert m.time == 9
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         m.best_blend("u", "ab", "x", advance=1)
     assert m.time == 9
     a, v = m.best_blend("u", ({"x": x} for x in "bc"))
@@ -597,6 +599,146 @@ def test_mixed_slots():
              38.406038686568394, -0.25, -0.25,
              "B", 50, 0, 0,
              "B", 56.669062843109664, -1, -1)
+
+def test_index():
+    m = Memory(index=["size", "color"], blend="utility")
+    m.learn({"size": 17, "color": "fuschia", "utility": 3.14159})
+    m.learn({"size": 11, "color": "magenta", "utility": 0, "other": "mumble"})
+    assert m.retrieve({"size":17, "color": "fuschia"})["utility"] == 3.14159
+    assert m.retrieve({"size":11})["utility"] == 0
+    assert m.retrieve({"size":17, "color": "magenta"}) is None
+    assert m.retrieve({"utility": 0})["color"] == "magenta"
+    m.reset(preserve_prepopulated=True)
+    m.advance()
+    assert isclose(m.retrieve({"color": "fuschia"})["utility"], 3.14159)
+    assert m.retrieve({"color": "magenta"}) is None
+    m.reset()
+    m.advance()
+    assert m.retrieve({"color": "fuschia"}) is None
+    m.learn({"size": 17, "color": "fuschia", "utility": 3.14159})
+    m.learn({"size": 11, "color": "magenta", "utility": 0, "other": "mumble"})
+    with pytest.raises(ValueError):
+        m.learn({"size": 17, "color": "fuschia", "utility": "three"})
+    with pytest.raises(ValueError):
+        m.learn({"size": 17, "utility": 3.14159, "other": "mumble"})
+    assert len(m) == 2
+    m.learn({"size": 11, "color": "magenta", "utility": 0, "other": "sniff"})
+    t = m.time
+    m.learn({"size": 11, "color": "vermillion", "utility": 2, "other": "mumble"})
+    m.learn({"size": 12, "color": "magenta", "utility": 5, "other": "frotz"})
+    m.learn({"size": 11, "color": "magenta", "utility": 1})
+    m.learn({"size": 11, "color": "magenta", "utility": 0.5, "other": "gorble"})
+    assert 0 <= m.retrieve({"size": 11, "color": "magenta"})["utility"] <= 1
+    for i in range(1000):
+        assert 0 <= m.retrieve({"size": 11})["utility"] <= 2
+    assert m.retrieve({"color": "vermillion"})["utility"] == 2
+    m.forget({"size": 11, "color": "vermillion", "utility": 2, "other": "mumble"}, t)
+    assert m.retrieve({"color": "vermillion"}) is None
+    m = Memory(index=["size", "color"], blend="utility")
+    m.learn({"size": 17, "color": "fuschia", "utility": 3})
+    m.learn({"size": 11, "color": "magenta", "utility": 10_000})
+    m.learn({"size": 16, "color": "fuschia", "utility": 2})
+    m.learn({"size": 7, "color": "fuschia", "utility": 4})
+    for i in range(1000):
+        assert 2 < m.blend("utility", {"color": "fuschia"}) < 5
+    assert m.blend("utility", {"color": "magenta"}) == 10_000
+    assert m.blend("utility", {"color": "cyan"}) is None
+    m.learn({"size": 51, "color": "magenta", "utility": 10_000, "other": "mumble"})
+    for i in range(1000):
+        assert 2 < m.blend("utility", {"color": "fuschia"}) < 5
+    assert isclose(m.blend("utility", {"color": "magenta"}), 10_000, rel_tol=0.0001)
+    m.learn({"size": 51, "color": "magenta", "utility": 10_000, "other": "mumble"})
+    m.learn({"size": 51, "color": "magenta", "utility": 10_001})
+    for i in range(1000):
+        assert 10_000 < m.blend("utility", {"color": "magenta"}) < 10_001
+    m = Memory(index=["color"], blend="utility")
+    m.learn({"size": 17, "color": "fuschia", "utility": 3})
+    m.learn({"color": "magenta", "utility": 10_000})
+    m.learn({"size": 16, "color": "fuschia", "utility": 2})
+    m.learn({"size": 7, "color": "fuschia", "utility": 4})
+    for i in range(1000):
+        assert 2 < m.blend("utility", {"color": "fuschia"}) < 5
+    assert isclose(m.blend("utility", {"color": "magenta"}), 10_000, rel_tol=0.0001)
+    assert m.blend("utility", {"color": "cyan"}) is None
+    m.learn({"size": 51, "color": "magenta", "utility": 10_000, "other": "mumble"})
+    for i in range(1000):
+        assert 2 < m.blend("utility", {"color": "fuschia"}) < 5
+    assert isclose(m.blend("utility", {"color": "magenta"}), 10_000, rel_tol=0.0001)
+    m.learn({"color": "magenta", "utility": 10_000, "other": "mumble"})
+    m.learn({"size": 51, "color": "magenta", "utility": 10_001})
+    for i in range(1000):
+        assert 10_000 < m.blend("utility", {"color": "magenta"}) < 10_001
+    m = Memory(blend="n")
+    m.learn({"n": 10})
+    assert m.blend("n") == 10
+    m.learn({"n": 11})
+    assert 10 < m.blend("n") < 11
+    m.learn({"n": 10})
+    assert 10 < m.blend("n") < 11
+    m = Memory(index=["size", "color"])
+    m.learn({"size": 19, "color": "cyan"})
+    m = Memory(blend="utility")
+    m.learn({"utility": -19})
+    with pytest.raises(ValueError):
+        m.learn({"utility": None})
+    with pytest.raises(ValueError):
+        Memory(index=["size", 4, "color"])
+    with pytest.raises(ValueError):
+        Memory(blend=("utility",))
+    with pytest.raises(ValueError):
+        Memory(index=["size", "color", "size"])
+    with pytest.raises(ValueError):
+        Memory(index=["size", "color"], blend="size")
+
+def test_index_speedup():
+    m = Memory()
+    u = 0
+    for i in range(10_000):
+        for c in ["red", "blue", "green"]:
+            m.learn({"size": i, "color": c, "utility": u})
+            u += 1
+    start = time()
+    ans = m.retrieve({"color": "blue", "size": 4567})["utility"]
+    end = time()
+    slow = end - start
+    assert ans == 13702
+    m = Memory(index=["size", "color"], blend="utility")
+    u = 0
+    for i in range(10000):
+        for c in ["red", "blue", "green"]:
+            m.learn({"size": i, "color": c, "utility": u})
+            u += 1
+    start = time()
+    ans = m.retrieve({"color": "blue", "size": 4567})["utility"]
+    end = time()
+    fast = end - start
+    assert ans == 13702
+    assert fast / slow < 0.1
+    use_actr_similarity(False)
+    set_similarity_function(True, ["size"])
+    m = Memory(mismatch=1)
+    u = 0
+    for i in range(10_000):
+        for c in ["red", "blue", "green"]:
+            m.learn({"size": i, "color": c, "utility": u})
+            u += 1
+    start = time()
+    ans = m.retrieve({"color": "blue", "size": 4567}, partial=True)["utility"]
+    end = time()
+    slow = end - start
+    assert 29_000 <= ans <= 31_000
+    m = Memory(index=["color"], mismatch=1)
+    u = 0
+    for i in range(10_000):
+        for c in ["red", "blue", "green"]:
+            m.learn({"size": i, "color": c, "utility": u})
+            u += 1
+    start = time()
+    ans = m.retrieve({"color": "blue", "size": 4567}, partial=True)["utility"]
+    end = time()
+    fast = end - start
+    assert 29_000 <= ans <= 31_000
+    assert fast / slow < 0.5
 
 def test_fixed_noise():
     N = 300
