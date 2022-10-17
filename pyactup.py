@@ -39,6 +39,16 @@ sites.
 
 __version__ = "2.0.dev1"
 
+# TODO:
+#   new similarity API
+#     also make per Memory again instead of global
+#       document that only top level similarity functions can be pickled
+#       unit tests for pickling, too
+#   finish adding weights to similarities
+#   error option when out of range similarity? Or document how to turn warnings into errors
+#   implement more general optimized learning
+#   implement non-numeric blending
+
 if "dev" in __version__:
     print("PyACTUp version", __version__)
 
@@ -74,22 +84,25 @@ MAXIMUM_RANDOM_SEED = 2**62
 
 class Memory(dict):
     """A cognitive entity containing a collection of learned things, its chunks.
-    A Memory object also contains a current time, which can be queried as the :attr:`time`
-    property.
+    A ``Memory`` object also contains a current time, which can be queried as the
+    :attr:`time` property.
 
-    The number of distinct chunks a Memory contains can be determined with Python's
+    The number of distinct chunks a ``Memory`` contains can be determined with Python's
     usual :func:`len` function.
 
-    A Memory has several parameters controlling its behavior: :attr:`noise`,
+    A ``Memory`` has several parameters controlling its behavior: :attr:`noise`,
     :attr:`decay`, :attr:`temperature`, :attr:`threshold`, :attr:`mismatch`,
     :attr:`learning_time_increment`, attr:`retrieval_time_increment` and
     :attr:`optimized_learning`. All can be queried, and most set, as properties on the
-    Memory object. When creating a Memory object their initial values can be supplied as
-    parameters.
+    ``Memory`` object. When creating a ``Memory`` object their initial values can be
+    supplied as parameters.
 
-    A Memory object can be serialized with
-    `pickle <https://docs.python.org/3.6/library/pickle.html>`_, allowing Memory objects
-    to be saved to and restored from persistent storage.
+    A ``Memory`` object can be serialized with
+    `pickle <https://docs.python.org/3.6/library/pickle.html>`_, so long as any similarity
+    functions it contains are defined at the top level of a module using ``def``, allowing
+    Memory objects to be saved to and restored from persistent storage. Note that attempts
+    to pickle a Memory object containing a similarity function defined as a lambda
+    function, or as an inner function, will cause a :exc:`PicklingError` to be raised.
 
     If, when creating a ``Memory`` object, any of *noise*, *decay* or *mismatch* are
     negative, or if *temperature* is less than 0.01, a :exc:`ValueError` is raised.
@@ -453,6 +466,11 @@ class Memory(dict):
         exactly, and chunks not matching on this attributes are not included at all in the
         corresponding partial retrievals or blending operations.
 
+        While for the likelihoods of retrieval the values of attr:`time` are normally
+        scale free, not depending upon the magnitudes of attr:`time`, but rather the
+        ratios of various times, the attr:`mismatch` is sensitive to the actual
+        magnitude. Suitable care should be exercised when adjusting it.
+
         Attempting to set this parameter to a value other than ``None`` or a real number
         raises a :exc:`ValueError`.
         """
@@ -638,7 +656,6 @@ class Memory(dict):
         is not :class:`Hashable`. Raises a :exc:`ValueError` if no *slots* are provided,
         or if any of the keys of *slots* are not non-empty strings.
 
-        TODO update this example to new API
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":4})
         True
@@ -665,11 +682,15 @@ class Memory(dict):
         return created
 
     @staticmethod
+    def _ensure_slot_name(name):
+        if not (isinstance(name, str) and len(name) > 0):
+            raise ValueError(f"Attribute name {name} is not a non-empty string")
+
+    @staticmethod
     def _ensure_slots(slots):
         slots = dict(slots)
         for name in slots.keys():
-            if not (isinstance(name, str) and len(name) > 0):
-                raise ValueError(f"Attribute name {name} is not a non-empty string")
+            Memory._ensure_slot_name(name)
         return slots
 
     def _advance(self, argument, default):
@@ -859,7 +880,7 @@ class Memory(dict):
         """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*.
         Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
-        that is not a real number a :exc:`TypeError` is raised.
+        that is not a real number an :exc:`Exception` is raised.
 
         Before performing the blending operation :meth:`advance` is called with the value
         of *advance* as its argument. If *advance* is not supplied the current value

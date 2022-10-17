@@ -6,10 +6,12 @@ import pyactup
 import math
 import numpy as np
 import pytest
+import random
 import sys
 
 from math import isclose
 from pprint import pprint
+from time import time
 
 def test_parameter_manipulation():
     m = Memory()
@@ -469,7 +471,7 @@ def test_best_blend():
     assert m.time == 8
     m.learn({"u":"not a number", "x":"a"})
     assert m.time == 9
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         m.best_blend("u", "ab", "x", advance=1)
     assert m.time == 9
     a, v = m.best_blend("u", ({"x": x} for x in "bc"))
