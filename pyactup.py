@@ -48,6 +48,7 @@ __version__ = "2.0.dev1"
 #   error option when out of range similarity? Or document how to turn warnings into errors
 #   implement more general optimized learning
 #   implement non-numeric blending
+#   probably back out of auto-advancing stuff, which seems more trouble than it's worth
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)

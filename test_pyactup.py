@@ -6,12 +6,10 @@ import pyactup
 import math
 import numpy as np
 import pytest
-import random
 import sys
 
 from math import isclose
 from pprint import pprint
-from time import time
 
 def test_parameter_manipulation():
     m = Memory()
