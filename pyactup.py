@@ -39,16 +39,6 @@ sites.
 
 __version__ = "2.0.dev1"
 
-# TODO:
-#   new similarity API
-#     also make per Memory again instead of global
-#       document that only top level similarity functions can be pickled
-#       unit tests for pickling, too
-#   finish adding weights to similarities
-#   error option when out of range similarity? Or document how to turn warnings into errors
-#   implement more general optimized learning
-#   implement non-numeric blending
-
 if "dev" in __version__:
     print("PyACTUp version", __version__)
 
@@ -81,49 +71,25 @@ LN_CACHE_SIZE = 1000
 SIMILARITY_CACHE_SIZE = 10_000
 NOISE_VALUES_SIZE = 1000
 MAXIMUM_RANDOM_SEED = 2**62
-ARRAY_RESIZE_FACTOR = 4
 
 class Memory(dict):
     """A cognitive entity containing a collection of learned things, its chunks.
-    A ``Memory`` object also contains a current time, which can be queried as the
-    :attr:`time` property.
+    A Memory object also contains a current time, which can be queried as the :attr:`time`
+    property.
 
-    The number of distinct chunks a ``Memory`` contains can be determined with Python's
+    The number of distinct chunks a Memory contains can be determined with Python's
     usual :func:`len` function.
 
-    A ``Memory`` has several parameters controlling its behavior: :attr:`noise`,
+    A Memory has several parameters controlling its behavior: :attr:`noise`,
     :attr:`decay`, :attr:`temperature`, :attr:`threshold`, :attr:`mismatch`,
     :attr:`learning_time_increment`, attr:`retrieval_time_increment` and
     :attr:`optimized_learning`. All can be queried, and most set, as properties on the
-    ``Memory`` object. When creating a ``Memory`` object their initial values can be
-    supplied as parameters.
+    Memory object. When creating a Memory object their initial values can be supplied as
+    parameters.
 
-    It is common in simple PyACTUp models for all the chunks within a ``Memory`` object to
-    have the same slots. Such slots can be declared by supplying a value for the *index*
-    parameter, which should be a non-empty iterable of distinct slot names, non-empty
-    strings. In some use cases involving many chunks supplying an *index* can results in
-    significantly faster retrievals and blending operations. When an *index* has been so
-    declared any chunks added with :meth:`learn` must have values for all of those slots
-    provided, or a :exc:`ValueError` is raised.
-
-    It is also common in simple PyACTUp models for a slot to always be provided that is
-    frequently blended over. Such a slot can be declared using the *blend* parameter,
-    which should be a slot name, a non-empty string distinct from any slot names in the
-    *index*, if any. The value of such a slot must always be a real number; any attempt
-    to :meth:`learn` a chunk for which no such value is supplied, or if it is not a real
-    number, results in a :exc:`ValueError` being raised. Again for some models involving
-    many chunks blending operations can be often be made faster by provinding an
-    appropriate *blend* parameter value.
-
-    The values of *index* and *blend* cannot be changed after a ``Memory`` object is
-    created.
-
-    A ``Memory`` object can be serialized with
-    `pickle <https://docs.python.org/3.6/library/pickle.html>`_, so long as any similarity
-    functions it contains are defined at the top level of a module using ``def``, allowing
-    Memory objects to be saved to and restored from persistent storage. Note that attempts
-    to pickle a Memory object containing a similarity function defined as a lambda
-    function, or as an inner function, will cause a :exc:`PicklingError` to be raised.
+    A Memory object can be serialized with
+    `pickle <https://docs.python.org/3.6/library/pickle.html>`_, allowing Memory objects
+    to be saved to and restored from persistent storage.
 
     If, when creating a ``Memory`` object, any of *noise*, *decay* or *mismatch* are
     negative, or if *temperature* is less than 0.01, a :exc:`ValueError` is raised.
@@ -138,9 +104,7 @@ class Memory(dict):
                  mismatch=None,
                  learning_time_increment=DEFAULT_LEARNING_TIME_INCREMENT,
                  retrieval_time_increment=DEFAULT_RETRIEVAL_TIME_INCREMENT,
-                 optimized_learning=False,
-                 index=None,
-                 blend=None):
+                 optimized_learning=False):
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
         self._activation_noise_cache = None
         self._activation_noise_cache_time = None
@@ -163,24 +127,7 @@ class Memory(dict):
         self._rng = np.random.default_rng([random.randint(0, MAXIMUM_RANDOM_SEED) for i in range(16)])
         self._noise_values = None
         self._next_noise_value = NOISE_VALUES_SIZE
-        self._index = None
         self.reset(optimized_learning=bool(optimized_learning))
-        self._index_slots = ()
-        self._blend_slot = None
-        if index or blend:
-            attribute_set = set()
-            if blend:
-                self._blend_slot = blend
-                Memory._ensure_slot_name(blend)
-                attribute_set.add(blend)
-            if index:
-                for name in index:
-                    Memory._ensure_slot_name(name)
-                    if name in attribute_set:
-                        raise ValueError(f"Duplicate slot name `{name}'")
-                    attribute_set.add(name)
-                self._index_slots = tuple(sorted(index))
-            self._index = dict()
 
     def __repr__(self):
         return f"<Memory {dict(self.items())}>"
@@ -201,31 +148,18 @@ class Memory(dict):
         if optimized_learning and self._decay >= 1:
             raise RuntimeError(f"Optimized learning cannot be enabled if the decay, {self._decay}, is not less than 1")
         if preserve_prepopulated:
-            preserved = {}
-            for k, v in self.items():
-                if v._creation == 0 and (self._optimized_learning
-                                         or len(v._references) < 2
-                                         or v._references[1] > 0):
-                    preserved[k] = v
-                elif v._creation <= 0:
-                    raise RuntimeError(
-                        "Can't preserve_prepoulated in reset() when there are multiple prepoulated reinforcements for the same chunk, or negative chunk creation times")
+            preserved = {k: v for k, v in self.items() if v._creation == 0}
         self.clear()
-        if self._index is not None:
-            self._index.clear()
         self._time = 0
         if optimized_learning is not None:
             self._optimized_learning = bool(optimized_learning)
         if preserve_prepopulated:
-            if self._index:
-                self._index.clear()
             for k, v in preserved.items():
                 v._references = np.empty(1, dtype=int) if self._optimized_learning else np.array([0])
                 v._reference_count = 1
                 v._base_activation_time = None
                 v._base_activation = None
                 self[k] = v
-                self._update_index(v)
         self._clear_noise_cache()
 
     def _clear_noise_cache(self):
@@ -519,11 +453,6 @@ class Memory(dict):
         exactly, and chunks not matching on this attributes are not included at all in the
         corresponding partial retrievals or blending operations.
 
-        While for the likelihoods of retrieval the values of attr:`time` are normally
-        scale free, not depending upon the magnitudes of attr:`time`, but rather the
-        ratios of various times, the attr:`mismatch` is sensitive to the actual
-        magnitude. Suitable care should be exercised when adjusting it.
-
         Attempting to set this parameter to a value other than ``None`` or a real number
         raises a :exc:`ValueError`.
         """
@@ -707,11 +636,9 @@ class Memory(dict):
 
         Raises a :exc:`TypeError` if an attempt is made to learn an attribute value that
         is not :class:`Hashable`. Raises a :exc:`ValueError` if no *slots* are provided,
-        if any of the keys of *slots* are not non-empty strings, if any *slots*
-        required because of an *index* or *blend* keyword argument provided when this
-        Memory was create are not present, or of the the value of the *blend* slot is not
-        a real number.
+        or if any of the keys of *slots* are not non-empty strings.
 
+        TODO update this example to new API
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":4})
         True
@@ -725,75 +652,24 @@ class Memory(dict):
         """
         slots = Memory._ensure_slots(slots)
         if not slots:
-            raise ValueError("No attributes were provided to learn()")
-        blend_value = None
-        if self._blend_slot:
-            blend_value = slots.get(self._blend_slot)
-            if blend_value is None:
-                raise ValueError(f"No {self._blend_slot} value was provided")
-            elif not isinstance(blend_value, Number):
-                raise ValueError(f"The value of the {self._blend_slot} slot, {blend_value}, is not a number")
-        index_key = []
-        for name in (self._index_slots or ()):
-            if name in slots:
-                index_key.append(slots[name])
-            else:
-                raise ValueError(f"No {name} value was povided")
+            raise ValueError("No attributes provided to learn()")
         created = False
         signature = tuple(sorted(slots.items()))
         chunk = self.get(signature)
         if not chunk:
             chunk = Chunk(self, slots)
             self[signature] = chunk
-            self._update_index(chunk, blend_value, index_key)
             created = True
         self._cite(chunk)
         self._advance(advance, self._learning_time_increment)
         return created
 
-    def _update_index(self, chunk, blend_value=None, index_key=None):
-        if self._index is not None:
-            if index_key is None:
-                index_key = []
-                for name in (self._index_slots or ()):
-                    index_key.append(chunk[name])
-            if blend_value is None:
-                blend_value = chunk.get(self._blend_slot)
-            index_key = tuple(index_key)
-            entry = self._index.get(index_key)
-            if not entry:
-                entry = Memory._IndexEntry(self._blend_slot)
-                self._index[index_key] = entry
-            if self._blend_slot:
-                i = len(entry._chunks)
-                if i >= entry._values.size:
-                    entry._values.resize(ARRAY_RESIZE_FACTOR * entry._values.size,
-                                         refcheck=False)
-                entry._values[i] = blend_value
-            entry._chunks.append(chunk)
-
-    class _IndexEntry:
-
-        __slots__ = ["_chunks", "_values"]
-
-        def __init__(self, includes_blend=True):
-            self._chunks = list()
-            if includes_blend is None:
-                self._values = None
-            else:
-                self._values = np.empty(1, dtype=float)
-
-
-    @staticmethod
-    def _ensure_slot_name(name):
-        if not (isinstance(name, str) and len(name) > 0):
-            raise ValueError(f"Attribute name {name} is not a non-empty string")
-
     @staticmethod
     def _ensure_slots(slots):
         slots = dict(slots)
         for name in slots.keys():
-            Memory._ensure_slot_name(name)
+            if not (isinstance(name, str) and len(name) > 0):
+                raise ValueError(f"Attribute name {name} is not a non-empty string")
         return slots
 
     def _advance(self, argument, default):
@@ -804,8 +680,7 @@ class Memory(dict):
     def _cite(self, chunk):
         if not self._optimized_learning:
             if chunk._reference_count >= chunk._references.size:
-                chunk._references.resize(ARRAY_RESIZE_FACTOR * chunk._references.size,
-                                         refcheck=False)
+                chunk._references.resize(2 * chunk._references.size, refcheck=False)
             chunk._references[chunk._reference_count] = self._time
         chunk._reference_count += 1
         chunk._base_activation_time = None
@@ -842,18 +717,6 @@ class Memory(dict):
             raise RuntimeError("Can't meaningfully forget a chunk at its creation time with optimized learning")
         chunk._reference_count -= 1
         if not chunk._reference_count:
-            if self._index:
-                key = tuple(chunk[k] for k in self._index_slots)
-                entry = self._index[key]
-                if entry._values is not None:
-                    i = entry._chunks.index(chunk)
-                    for j in range(i + 1, len(entry._chunks)):
-                        entry._values[j - 1] = entry._values[j]
-                    del entry._chunks[i]
-                else:
-                    entry._chunks.remove(chunk)
-                if not entry._chunks:
-                    del self._index[key]
             del self[signature]
         return True
 
@@ -903,12 +766,9 @@ class Memory(dict):
         # Returns a single chunk matching the given slots and values, that has the
         # highest activation greater than the threshold parameter. If there are no
         # such chunks returns None.
-        candidates, conditions, ignore = self._indexed_candidates(conditions)
-        if candidates is None:
-            candidates = self.values()
         best_chunk = None
         best_activation = self._threshold
-        for chunk in candidates:
+        for chunk in self.values():
             if not conditions.keys() <= chunk.keys():
                 continue
             for key, value in conditions.items():
@@ -920,20 +780,6 @@ class Memory(dict):
                     best_chunk = chunk
                     best_activation = a
         return best_chunk
-
-    def _indexed_candidates(self, conditions):
-        if self._index:
-            try:
-                index_key = []
-                remaining = conditions.copy()
-                for k in self._index_slots:
-                    index_key.append(conditions[k])
-                    del remaining[k]
-                entry = self._index[tuple(index_key)]
-                return entry._chunks, remaining, entry._values
-            except KeyError:
-                pass
-        return None, conditions, None
 
     def _make_noise(self, chunk):
         if not self._noise:
@@ -954,35 +800,30 @@ class Memory(dict):
 
     class _Activations(abc.Iterable):
 
-        def __init__(self, memory, conditions, chunks=None):
+        def __init__(self, memory, conditions):
             self._memory = memory
-            if chunks:
-                self._chunks = chunks
-            else:
-                self._chunks, conditions, ignore = memory._indexed_candidates(conditions)
             self._conditions = conditions
-            if self._chunks is None:
-                self._chunks = memory.values()
-            self._partial = []
-            if memory._mismatch is None:
-                self._exact = conditions.keys()
-            else:
-                self._exact = []
-                for k in conditions.keys():
-                    if Memory._similarity_functions.get(k):
-                        self._partial.append(k)
-                    else:
-                        self._exact.append(k)
 
         def __iter__(self):
-            self._chunks_iter = self._chunks.__iter__()
+            self._chunks = self._memory.values().__iter__()
             return self
 
         def __next__(self):
             while True:
-                chunk = self._chunks_iter.__next__() # pass on up the Stop Iteration
+                chunk = self._chunks.__next__()             # pass on up the Stop Iteration
                 if self._conditions.keys() <= chunk.keys(): # subset
-                    if not all(chunk[a] == self._conditions[a] for a in self._exact):
+                    if self._memory._mismatch is None:
+                        exact = self._conditions.keys()
+                        partial = []
+                    else:
+                        exact = []
+                        partial = []
+                        for c in self._conditions.keys():
+                            if Memory._similarity_functions.get(c):
+                                partial.append(c)
+                            else:
+                                exact.append(c)
+                    if not all(chunk[a] == self._conditions[a] for a in exact):
                         continue
                     activation = chunk._activation(True)
                     if self._memory._mismatch is None:
@@ -991,7 +832,7 @@ class Memory(dict):
                         return (chunk, activation)
                     mismatch = (self._memory._mismatch
                                 * sum(self._memory._similarity(self._conditions[a], chunk[a], a) - 1
-                                      for a in self._partial))
+                                      for a in partial))
                     total = activation + mismatch
                     if self._memory._activation_history is not None:
                         history = self._memory._activation_history[-1]
@@ -1000,8 +841,8 @@ class Memory(dict):
                     return (chunk, total)
 
 
-    def _activations(self, conditions, chunks=None):
-         return self._Activations(self, conditions, chunks)
+    def _activations(self, conditions):
+         return self._Activations(self, conditions)
 
     def _partial_match(self, conditions):
         best_chunks = []
@@ -1018,9 +859,7 @@ class Memory(dict):
         """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*.
         Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
-        that is not a real number a :exc:`TypeError` is raised. Note that, unlike
-        retrievals, blending operations do not consulte the attr:`mismatch` penalty, if
-        any.
+        that is not a real number a :exc:`TypeError` is raised.
 
         Before performing the blending operation :meth:`advance` is called with the value
         of *advance* as its argument. If *advance* is not supplied the current value
@@ -1041,60 +880,35 @@ class Memory(dict):
         slots = Memory._ensure_slots(slots)
         old = self._advance(advance, self._retrieval_time_increment)
         try:
-            chunks = None
-            activations = []
-            result = None
-            if outcome_attribute == self._blend_slot:
-                chunks, remaining, values = self._indexed_candidates(slots)
-                if chunks and not remaining:
-                    if len(chunks) == 1 and self._activation_history is None:
-                        result = values[0]
-                    else:
-                        activations = np.array([a for c, a in self._activations(slots, chunks)],
-                                               dtype=float)
-                        result = self._blending_computation(values[0:len(chunks)], activations)
-                    if result is None:
-                        return None
-                else:
-                    result = None
-            if result is None:
-                values = []
-                for chunk, activation in self._activations(slots, chunks):
-                    if outcome_attribute not in chunk:
-                        continue
-                    values.append(chunk[outcome_attribute])
-                    activations.append(activation)
-                if len(values) == 1 and self._activation_history is None:
-                    result = values[0]
-                else:
-                    result = self._blending_computation(np.array(values, dtype=float),
-                                                        np.array(activations, dtype=float))
-            if result is None:
+            weights = 0.0
+            weighted_outcomes = 0.0
+            if self._activation_history is not None:
+                chunk_weights = []
+            for chunk, activation in self._activations(slots):
+                if outcome_attribute not in chunk:
+                    continue
+                weight = math.exp(activation / self._temperature)
+                if self._activation_history is not None:
+                    chunk_weights.append((self._activation_history[-1], weight))
+                weights += weight
+                weighted_outcomes += weight * chunk[outcome_attribute]
+            if self._activation_history is not None:
+                for history, w in chunk_weights:
+                    try:
+                        history["retrieval_probability"] = w / weights
+                    except ZeroDivisionError:
+                        history["retrieval_probability"] = None
+            try:
+                result = weighted_outcomes / weights
+                old = None
+                return result
+            except ZeroDivisionError:
                 return None
-            old = None
-            return result
         finally:
             if old is not None:
                 # Don't advance if there's an error or for some other reason we don't
                 # finish normally; note that the noise cache is still cleared, though.
                 self._time = old
-
-    def _blending_computation(self, outcomes, activations):
-        if self._activation_history is not None:
-            chunk_weights = []
-        weights = np.exp(np.divide(activations, self._temperature))
-        if self._activation_history is not None:
-            for ah, w in zip(self._activation_history, weights):
-                chunk_weights.append((ah, w))
-        total_weights = np.sum(weights)
-        weighted_outcomes = np.sum(np.multiply(outcomes, weights))
-        if self._activation_history is not None:
-            for history, w in chunk_weights:
-                if total_weights == 0:
-                    history["retrieval_probability"] = None
-                else:
-                    history["retrieval_probability"] = w / total_weights
-        return weighted_outcomes / total_weights if total_weights != 0 else None
 
     def best_blend(self, outcome_attribute, iterable, select_attribute=None, advance=None, minimize=False):
         """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
