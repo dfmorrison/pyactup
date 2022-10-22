@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2021 Carnegie Mellon University
+# Copyright (c) 2018-2022 Carnegie Mellon University
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this
 # software and associated documentation files (the "Software"), to deal in the Software
@@ -39,17 +39,6 @@ sites.
 
 __version__ = "2.0.dev1"
 
-# TODO:
-#   new similarity API
-#     also make per Memory again instead of global
-#       document that only top level similarity functions can be pickled
-#       unit tests for pickling, too
-#   finish adding weights to similarities
-#   error option when out of range similarity? Or document how to turn warnings into errors
-#   implement more general optimized learning
-#   implement non-numeric blending
-#   probably back out of auto-advancing stuff, which seems more trouble than it's worth
-
 if "dev" in __version__:
     print("PyACTUp version", __version__)
 
@@ -58,12 +47,15 @@ import csv
 import io
 import math
 import numpy as np
+import numpy.ma as ma
 import operator
 import pylru
 import random
 import sys
 
+from collections import defaultdict
 from contextlib import contextmanager
+from itertools import count
 from numbers import Number
 from prettytable import PrettyTable
 from warnings import warn
@@ -73,14 +65,11 @@ __all__ = ("Memory", "set_similarity_function", "use_actr_similarity")
 DEFAULT_NOISE = 0.25
 DEFAULT_DECAY = 0.5
 DEFAULT_THRESHOLD = -10.0
-DEFAULT_LEARNING_TIME_INCREMENT = 1
-DEFAULT_RETRIEVAL_TIME_INCREMENT = 0
 
 MINIMUM_TEMPERATURE = 0.01
 
-LN_CACHE_SIZE = 1000
+REFERENCES_FACTOR = 4
 SIMILARITY_CACHE_SIZE = 10_000
-NOISE_VALUES_SIZE = 1000
 MAXIMUM_RANDOM_SEED = 2**62
 
 class Memory(dict):
@@ -92,9 +81,8 @@ class Memory(dict):
     usual :func:`len` function.
 
     A ``Memory`` has several parameters controlling its behavior: :attr:`noise`,
-    :attr:`decay`, :attr:`temperature`, :attr:`threshold`, :attr:`mismatch`,
-    :attr:`learning_time_increment`, attr:`retrieval_time_increment` and
-    :attr:`optimized_learning`. All can be queried, and most set, as properties on the
+    :attr:`decay`, :attr:`temperature`, :attr:`threshold`, :attr:`mismatch`, and
+    :attr:`optimized_learning`. All can be queried and set as properties on the
     ``Memory`` object. When creating a ``Memory`` object their initial values can be
     supplied as parameters.
 
@@ -116,16 +104,14 @@ class Memory(dict):
                  temperature=None,
                  threshold=DEFAULT_THRESHOLD,
                  mismatch=None,
-                 learning_time_increment=DEFAULT_LEARNING_TIME_INCREMENT,
-                 retrieval_time_increment=DEFAULT_RETRIEVAL_TIME_INCREMENT,
                  optimized_learning=False):
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
         self._activation_noise_cache = None
         self._activation_noise_cache_time = None
         self._noise = None
         self._decay = None
+        self._optimized_learning = None
         self.noise = noise
-        self._optimized_learning = False
         self.decay = decay
         if temperature is None and not self._validate_temperature(None, noise):
             warn(f"A noise of {noise} and temperature of None will make the temperature too low; setting temperature to 1")
@@ -134,45 +120,31 @@ class Memory(dict):
             self.temperature = temperature
         self.threshold = threshold
         self.mismatch = mismatch
-        self._learning_time_increment = learning_time_increment
-        self._retrieval_time_increment = retrieval_time_increment
+        self.optimized_learning = optimized_learning
         self._activation_history = None
+        self._slot_name_index = defaultdict(list)
         # Initialize the noise RNG from the parent Python RNG, in case the latter gets seeded for determinancy.
         self._rng = np.random.default_rng([random.randint(0, MAXIMUM_RANDOM_SEED) for i in range(16)])
-        self._noise_values = None
-        self._next_noise_value = NOISE_VALUES_SIZE
-        self.reset(optimized_learning=bool(optimized_learning))
+        self.reset()
 
     def __repr__(self):
-        return f"<Memory {dict(self.items())}>"
+        return f"<Memory {id(self)}: {len(self)}, {self._time}>"
 
-    def __str__(self):
-        return f"<Memory {id(self)}>"
-
-    def reset(self, preserve_prepopulated=False, optimized_learning=None):
+    def reset(self, preserve_prepopulated=False):
         """Deletes the Memory's chunks and resets its time to zero.
         If *preserve_prepopulated* is false it deletes all chunks; if it is true it
         deletes all chunk references later than time zero, completely deleting those
         chunks that were created at time greater than zero.
-        If *optimized_learning* is not None it sets the Memory's :attr:`optimized_learning`
-        parameter; otherwise it leaves it unchanged. This Memory's :attr:`noise`,
-        :attr:`decay`, :attr:`temperature`, :attr:`threshold` and :attr:`mismatch`
-        parameters are left unchanged.
         """
-        if optimized_learning and self._decay >= 1:
-            raise RuntimeError(f"Optimized learning cannot be enabled if the decay, {self._decay}, is not less than 1")
         if preserve_prepopulated:
             preserved = {k: v for k, v in self.items() if v._creation == 0}
         self.clear()
+        self._slot_name_index.clear()
         self._time = 0
-        if optimized_learning is not None:
-            self._optimized_learning = bool(optimized_learning)
         if preserve_prepopulated:
             for k, v in preserved.items():
                 v._references = np.empty(1, dtype=int) if self._optimized_learning else np.array([0])
                 v._reference_count = 1
-                v._base_activation_time = None
-                v._base_activation = None
                 self[k] = v
         self._clear_noise_cache()
 
@@ -181,6 +153,7 @@ class Memory(dict):
             self._activation_noise_cache.clear()
             self._activation_noise_cache_time = self._time
 
+    # TODO figure out how to do fixed_noise in the new implementation
     @property
     @contextmanager
     def fixed_noise(self):
@@ -306,39 +279,9 @@ class Memory(dict):
             self._time = old
 
     @property
-    def learning_time_increment(self):
-        """The default amount of time to :meth:`advance` by after performing a learn
-        operation. By default this is ``1``. Attempting  to set this to a negative value
-        raises a :exc:`ValueError`."""
-        return self._learning_time_increment
-
-    @learning_time_increment.setter
-    def learning_time_increment(self, value):
-        if value is None:
-            value = 0
-        if value < 0:
-            raise ValueError(f"The learning_time_increment cannot be negative ({value})")
-        self._learning_time_increment = value
-
-    @property
-    def retrieval_time_increment(self):
-        """The default amount of time to :meth:`advance` by before performing a retrieval
-        or blending operation. By default this is zero. Attempting to set this to a
-        negative values raise a :exc:`ValueError`."""
-        return self._retrieval_time_increment
-
-    @retrieval_time_increment.setter
-    def retrieval_time_increment(self, value):
-        if value is None:
-            value = 0
-        if value < 0:
-            raise ValueError(f"The retrieval_time_increment cannot be negative ({value})")
-        self._retrieval_time_increment = value
-
-    @property
     def noise(self):
         """The amount of noise to add during chunk activation computation.
-        This is typically a positive, floating point, number between about 0.1 and 1.5.
+        This is typically a positive, floating point, number between about 0.2 and 0.8.
         It defaults to 0.25.
         If zero, no noise is added during activation computation.
         If an explicit :attr:`temperature` is not set, the value of noise is also used
@@ -364,8 +307,8 @@ class Memory(dict):
 
     @property
     def decay(self):
-        """Controls the rate at which activation for previously chunks in memory decay with the passage of time.
-        Time in this sense is dimensionless.
+        """Controls the rate at which activation for chunks in memory decay with the passage of time.
+        Time in PyACTUp is dimensionless.
         The :attr:`decay` is typically between about 0.1 and 2.0.
         The default value is 0.5. If zero memory does not decay.
         If set to ``None`` no base level activation is computed or used; note that this is
@@ -381,15 +324,9 @@ class Memory(dict):
         if value is not None:
             if value < 0:
                 raise ValueError(f"The decay, {value}, must not be negative")
-            if value < 1:
-                self._ln_1_mius_d = math.log(1 - value)
-            elif self._optimized_learning:
-                self._ln_1_mius_d = "illegal value" # ensure error it attempt to use this
-                raise ValueError(f"The decay, {value}, must be less than one if optimized_learning is True")
-        self._ln_cache = [None]*LN_CACHE_SIZE
+            if value >= 1 and self._optimized_learning is not None:
+                raise ValueError(f"The decay, {value}, must be less than one if optimized_learning is used")
         self._decay = value
-        for c in self.values():
-            c._clear_base_activation()
 
     @property
     def temperature(self):
@@ -437,20 +374,18 @@ class Memory(dict):
         Attempting to set the ``threshold`` to a value that is neither ``None`` nor a
         real number raises a :exc:`ValueError`.
 
-        While for the likelihoods of retrieval the values of attr:`time` are normally
-        scale free, not depending upon the magnitudes of attr:`time`, but rather the
-        ratios of various times, the attr:`threshold` is sensitive to the actual
-        magnitude. Suitable care should be exercised when adjusting it.
+        While for the likelihoods of retrieval the values of :attr:`time` are normally
+        scale free, not depending upon the magnitudes of :attr:`time`, but rather the
+        ratios of various times, the :attr:`threshold` is sensitive to the actual
+        magnitude, and thus the units in which time is measured. Suitable care should be
+        exercised when adjusting it.
         """
-        if self._threshold == -sys.float_info.max:
-            return None
-        else:
-            return self._threshold
+        return self._threshold
 
     @threshold.setter
     def threshold(self, value):
         if value is None or value is False:
-            self._threshold = -sys.float_info.max
+            self._threshold = None
         else:
             self._threshold = float(value)
 
@@ -467,9 +402,9 @@ class Memory(dict):
         exactly, and chunks not matching on this attributes are not included at all in the
         corresponding partial retrievals or blending operations.
 
-        While for the likelihoods of retrieval the values of attr:`time` are normally
-        scale free, not depending upon the magnitudes of attr:`time`, but rather the
-        ratios of various times, the attr:`mismatch` is sensitive to the actual
+        While for the likelihoods of retrieval the values of :attr:`time` are normally
+        scale free, not depending upon the magnitudes of :attr:`time`, but rather the
+        ratios of various times, the :attr:`mismatch` is sensitive to the actual
         magnitude. Suitable care should be exercised when adjusting it.
 
         Attempting to set this parameter to a value other than ``None`` or a real number
@@ -485,6 +420,59 @@ class Memory(dict):
             raise ValueError(f"The mismatch penalty, {value}, must not be negative")
         else:
             self._mismatch = float(value)
+
+    @property
+    def optimized_learning(self):
+        """Whether or not this Memory is configured to use the optimized learning approximation.
+        If ``False``, the default, optimized learning is not used. If ``True`` is is used
+        for all cases. If a positive integer, that number of the most recent rehearsals
+        of a chunk are used exactly, with any older rehearsals having their contributions
+        to the activation approximated.
+
+        Attempting to set a value other than the above raises an :exc:`Exception`.
+
+        Optimized learning can only be used if the :attr:`decay` is less than one.
+        Attempting to set this parameter to ``True`` or an integer when :attr:`decay` is
+        one or greater raises a :exc:`RuntimeError`.
+
+        The value of this attributed can only be changed when the :class:`Memory` object
+        does not contain any chunks, typically immediately after it is created or
+        :meth:`reset`. Otherwise a :exc:`RuntimeError` is raised.
+
+        .. warning::
+            Care should be taken when using optimized learning as operations such as
+            ``retrieve`` that depend upon activation will not longer raise an exception if
+            they are called when ``advance`` has not been called after ``learn``, possibly
+            producing biologically implausible results.
+        """
+        if self._optimized_learning is None:
+            return False
+        elif self._optimized_learning == 0:
+            return True
+        else:
+            return self._optimized_learning
+
+    @optimized_learning.setter
+    def optimized_learning(self, value):
+        if value is False or value is None:
+            v = None
+        elif value is True or value == 0:
+            v = 0
+        else:
+            try:
+                v = int(value)
+            except:
+                v = -1
+            if v < 1:
+                raise RuntimeError(f"The value of optimized learning must be a Boolean "
+                                   f"or a positive integer, not {value}")
+        if v is not None and self._decay and self._decay >= 1:
+            raise RuntimeError(f"Optimized learning cannot be used when the decay, "
+                               f"{self.decay}, is greater than or equal to one.")
+        if self and v != self._optimized_learning:
+            raise RuntimeError("Cannot change optimized learning for a Memory that "
+                               "already contains chunks")
+        self._optimized_learning = v
 
     @property
     def activation_history(self):
@@ -558,6 +546,9 @@ class Memory(dict):
         Otherwise comma separated values (CSV) format, more suitable for importing into
         spreadsheets, numpy, and the like, is used.
 
+        If this :class:`Memory` is empty, not yet containing any chunks, nothing is
+        printed, and no file is created.
+
         .. warning::
             This method is intended as a debugging aid, and generally is not suitable for
             use as a part of models.
@@ -568,8 +559,8 @@ class Memory(dict):
             data = [{"chunk name": c._name,
                      "chunk contents": dict(k).__repr__()[1:-1],
                      "chunk created at": c._creation,
-                     "chunk references": (c.references if isinstance(c.references, Number)
-                                          else c.references.__repr__()[1:-1])}
+                     "chunk reference count": c._reference_count,
+                     "chunk references": Memory._elide_long_list(c._references)}
                     for k, c in self.items()]
             if pretty:
                 tab = PrettyTable()
@@ -586,19 +577,13 @@ class Memory(dict):
             with open(file, "w+", newline=(None if pretty else "")) as f:
                 self.print_chunks(f, pretty)
 
-    @property
-    def optimized_learning(self):
-
-        """A boolean indicating whether or not this Memory is configured to use optimized learning.
-        Cannot be set directly, but can be changed when calling :meth:`reset`.
-
-        .. warning::
-            Care should be taken when using optimized learning as operations such as
-            ``retrieve`` that depend upon activation will not longer raise an exception if
-            they are called when ``advance`` has not been called after ``learn``, possibly
-            producing biologically implausible results.
-        """
-        return self._optimized_learning
+    @staticmethod
+    def _elide_long_list(lst):
+        lst = list(lst)
+        if len(lst) <= 8:
+            return lst.__repr__()[1:-1]
+        else:
+            return lst[:3].__repr__()[1:-1] + ", ... " + lst[-3:].__repr__()[1:-1]
 
     _use_actr_similarity = False
     _minimum_similarity = 0
@@ -606,7 +591,7 @@ class Memory(dict):
     _similarity_functions = {}
     _similarity_cache = pylru.lrucache(SIMILARITY_CACHE_SIZE)
 
-    # possibly update docstrings for retrieve() and blend() to reflect new similarity stuff,
+    # TODO possibly update docstrings for retrieve() and blend() to reflect new similarity stuff,
     # or maybe put it all in set_similarity_function() and/or mismatch?
     def _similarity(self, x, y, attribute):
         # always returns the "natural" similarity
@@ -636,22 +621,18 @@ class Memory(dict):
             self._similarity_cache[signature] = result
             return result
 
-    def learn(self, slots, advance=None):
+    def learn(self, slots):
         """Adds, or reinforces, a chunk in this Memory with the attributes specified by *slots*.
         The attributes, or slots, of a chunk are described using the :class:`abc.Mapping`
         *slots*, the keys of which must be non-empty strings and are the attribute names.
-        All the *slots* values should be :class:`Hashable`.
+        All the values of the various *slots* must be :class:`Hashable`.
 
         Returns ``True`` if a new chunk has been created, and ``False`` if instead an
         already existing chunk has been re-experienced and thus reinforced.
 
-        After learning the relevant chunk, :meth:`advance` is called with an argument of
-        *advance*. If *advance* has not been supplied it defaults to the current value of
-        :attr:`learning_time_increment`; unless this has been changed by the programmer
-        this default value is ``1``. If this *advance* is zero then time must be advanced
-        by the programmer with :meth:`advance` following any calls to ``learn`` before
-        calling :meth:`retrieve` or :meth:`blend`. Otherwise the chunk learned at this
-        time would have infinite activation.
+        Note that after learning one or more chunks, before :meth:`retrieve` or
+        :meth:`blend` or similar methods can be called :meth:`advance` must be called,
+        lest the chunk(s) learned have infinite activation.
 
         Raises a :exc:`TypeError` if an attempt is made to learn an attribute value that
         is not :class:`Hashable`. Raises a :exc:`ValueError` if no *slots* are provided,
@@ -660,32 +641,34 @@ class Memory(dict):
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":4})
         True
+        >>> m.advance()
+        1
         >>> m.learn({"color":"blue", "size":4})
         True
+        >>> m.advance()
+        2
         >>> m.learn({"color":"red", "size":4})
         False
+        >>> m.advance()
+        3
         >>> m.retrieve({"color":"red"})
         <Chunk 0000 {'color': 'red', 'size': 4} 2>
-
         """
         slots = Memory._ensure_slots(slots)
-        if not slots:
-            raise ValueError("No attributes provided to learn()")
+        signature = Memory._signature(slots, "learn")
         created = False
-        signature = tuple(sorted(slots.items()))
-        chunk = self.get(signature)
-        if not chunk:
+        if not (chunk := self.get(signature)):
             chunk = Chunk(self, slots)
             self[signature] = chunk
+            self._slot_name_index[frozenset(slots.keys())].append(chunk)
             created = True
         self._cite(chunk)
-        self._advance(advance, self._learning_time_increment)
         return created
 
     @staticmethod
     def _ensure_slot_name(name):
         if not (isinstance(name, str) and len(name) > 0):
-            raise ValueError(f"Attribute name {name} is not a non-empty string")
+                raise ValueError(f"Attribute name {name} is not a non-empty string")
 
     @staticmethod
     def _ensure_slots(slots):
@@ -694,18 +677,28 @@ class Memory(dict):
             Memory._ensure_slot_name(name)
         return slots
 
-    def _advance(self, argument, default):
-        old = self._time
-        self.advance(argument if argument is not None else default)
-        return old
+    @staticmethod
+    def _signature(slots, fname):
+        if not (result := tuple(sorted(slots.items()))):
+            raise ValueError(f"No attributes provided to {fname}()")
+        return result
 
     def _cite(self, chunk):
-        if not self._optimized_learning:
+        if self._optimized_learning is None:
             if chunk._reference_count >= chunk._references.size:
-                chunk._references.resize(2 * chunk._references.size, refcheck=False)
+                chunk._references.resize(REFERENCES_FACTOR * chunk._references.size,
+                                         refcheck=False)
             chunk._references[chunk._reference_count] = self._time
+        elif  chunk._reference_count < self._optimized_learning:
+            if chunk._reference_count >= chunk._references.size:
+                chunk._references.resize(min(REFERENCES_FACTOR * chunk._references.size,
+                                             self._optimized_learning),
+                                         refcheck=False)
+            chunk._references[chunk._reference_count] = self._time
+        elif self._optimized_learning:
+            chunk._references[:-1] = chunk._references[1:]
+            chunk._references[-1] = self._time
         chunk._reference_count += 1
-        chunk._base_activation_time = None
 
     def forget(self, slots, when):
         """Undoes the operation of a previous call to :meth:`learn`.
@@ -718,43 +711,129 @@ class Memory(dict):
         undone, and *when* should be the time that was current when the operation was
         performed. Returns ``True`` if it successfully undoes such an operation, and
         ``False`` otherwise.
+
+        This method cannot be used with :attr:`optimized_learning`, and calling it when
+        optimized learning is enabled raises a :exc:`RuntimeError`.
         """
+        if self._optimized_learning is not None:
+            raise RuntimeError("The forget() method cannot be used with optimized learning")
         slots = Memory._ensure_slots(slots)
-        if not slots:
-            raise ValueError("No attributes provided to forget()")
-        signature = tuple(sorted(slots.items()))
+        signature = Memory._signature(slots, "forget")
         chunk = self.get(signature)
         if not chunk:
             return False
-        if not self._optimized_learning:
-            try:
-                i = np.where(chunk._references == when)[0][0]
-            except IndexError:
-                return False
-            if i < chunk._reference_count:
-                chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
-        elif when < chunk._creation:
+        try:
+            i = np.where(chunk._references == when)[0][0]
+        except IndexError:
             return False
-        elif when == chunk._creation and chunk._reference_count > 1:
-            raise RuntimeError("Can't meaningfully forget a chunk at its creation time with optimized learning")
+        if i < chunk._reference_count:
+            chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
         chunk._reference_count -= 1
         if not chunk._reference_count:
+            self._slot_name_index[frozenset(chunk.keys())].remove(chunk)
             del self[signature]
         return True
 
-    def retrieve(self, slots={}, partial=False, rehearse=False, advance=None):
-        """Returns the chunk matching the *slots* that has the highest activation greater than this Memory's :attr:`threshold`.
+    def _activations(self, conditions, extra=None, partial=True):
+        slot_names = conditions.keys()
+        if extra:
+            slot_names = set(slot_names)
+            slot_names.add(extra)
+        partial_slots = []
+        if partial and self._mismatch:
+            exact_slots =[]
+            for n, v in conditions.items():
+                if f := Memory._similarity_functions.get(s):
+                    partial_slots.append((n, v, f))
+                else:
+                    exact_slots.append((n, v))
+        else:
+            exact_slots = list(conditions.items())
+        chunks = []
+        for k, candidates in self._slot_name_index.items():
+            if slot_names <= k: # subset
+                for c in candidates:
+                    if not all(c[n] == v for n, v in exact_slots):
+                        continue
+                    chunks.append(c)
+        if not chunks:
+            return None         # TODO there's probably a better value to return
+        nchunks = len(chunks)
+        with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
+            try:
+                if self._decay is not None:
+                    if self._optimized_learning is None:
+                        result = np.empty(nchunks)
+                        for c, i in zip(chunks, count()):
+                            result[i] = np.sum((self._time - c._references[0:c._reference_count])
+                                               ** -self._decay)
+                        result = np.log(result)
+                    elif self._optimized_learning == 0:
+                        counts = np.empty(nchunks)
+                        ages = np.empty(nchunks)
+                        for c, i in zip(chunks, count()):
+                            counts[i] = c._reference_count
+                            ages[i] = self._time - c._creation
+                        result = (np.log(counts / (1 - self._decay))
+                                  - self._decay * np.log(ages))
+                    else:
+                        result = np.empty(nchunks)
+                        counts = ma.masked_all(nchunks)
+                        ages = ma.masked_all(nchunks)
+                        middles = ma.masked_all(nchunks)
+                        for c, i in zip(chunks, count()):
+                            if c._reference_count <= self._optimized_learning:
+                                result[i] = np.sum((self._time - c._references[0:c._reference_count])
+                                                   ** -self._decay)
+                            else:
+                                result[i] = np.sum((self._time - c._references[0:self._optimized_learning])
+                                                   ** -self._decay)
+                                counts[i] = c._reference_count
+                                ages[i] = self._time - c._creation
+                                middles[i] = c._references[0]
+                        dd = 1 - self._decay
+                        counts -= self._optimized_learning
+                        diff = ages - middles
+                        diff *= dd
+                        ages **= dd
+                        middles **= dd
+                        tmp = ages
+                        tmp -= middles
+                        tmp *= counts
+                        tmp /= diff
+                        result = np.log(result + tmp.filled(0))
+                else:
+                    result = np.zeros(nchunks)
+                if self._noise:
+                    noise = self._rng.logistic(scale=self._noise, size=nchunks)
+                    result += noise
+                if partial_slots:
+                    # TODO work out if this is better than doing it all row by row; for vectorize f?
+                    # TODO figure out weights and similarity caching
+                    # TODO call the similarity functions earlier?
+                    sims = np.empty((ncunhks, len(partial_slots)))
+                    for c, row in zip(chunks, count()):
+                        sims[i] = [f(c[n], v) for n, v, f in partial_slots]
+                    sims = np.sum(sims, 1) * self._mismatch
+                    # TODO add it in
+                if self._threshold is not None:
+                    m = ma.masked_less(result, self._threshold)
+                    if ma.is_masked(m):
+                        chunks = ma.array(chunks, mask=ma.getmask(m)).compressed()
+                        result = m.compressed()
+                # TODO deal with activation_history
+            except FloatingPointError as e:
+                raise RuntimeError(f"Error when computing activations, perhaps a chunk's "
+                                   f"creation or reinforcement time is not in the past? ({e})")
+        return result, chunks
+
+    def retrieve(self, slots={}, partial=False, rehearse=False):
+        """Returns the chunk matching the *slots* that has the highest activation greater than or equal to this Memory's :attr:`threshold`.
         If there is no such matching chunk returns ``None``.
         Normally only retrieves chunks exactly matching the *slots*; if *partial* is
         ``True`` it also retrieves those only approximately matching, using similarity
         (see :func:`set_similarity_function`) and :attr:`mismatch` to determine closeness
         of match.
-
-        Before performing the retrieval :meth:`advance` is called with the value of
-        *advance* as its argument. If *advance* is not supplied the current value
-        of :attr:`retrieval_time_increment` is used; unless changed by the programmer this
-        default value is zero. The advance of time does not occur if an error is raised
-        when attempting to perform the retrieval.
 
         If *rehearse* is supplied and true it also reinforces this chunk at the current
         time. No chunk is reinforced if retrieve returns ``None``.
@@ -762,175 +841,73 @@ class Memory(dict):
         The returned chunk is a dictionary-like object, and its attributes can be
         extracted with Python's usual subscript notation.
 
+        If any matching chunks were created or reinforced at or after the current time
+        an :exc:`Exception` is raised.
+
         >>> m = Memory()
         >>> m.learn({"widget":"thromdibulator", "color":"red", "size":2})
         True
+        >>> m.advance()
+        1
         >>> m.learn({"widget":"snackleizer", "color":"blue", "size":1})
         True
+        >>> m.advance()
+        2
         >>> m.retrieve({"color":"blue"})["widget"]
         'snackleizer'
         """
-        slots = Memory._ensure_slots(slots)
-        old = self._advance(advance, self._retrieval_time_increment)
-        try:
-            result = self._partial_match(slots) if partial else self._exact_match(slots)
-            if rehearse and result:
-                self._cite(result)
-            old = None
-            return result
-        finally:
-            if old is not None:
-                # Don't advance if there's an error or for some other reason we don't
-                # finish normally; note that the noise cache is still cleared, though.
-                self._time = old
-
-    def _exact_match(self, conditions):
-        # Returns a single chunk matching the given slots and values, that has the
-        # highest activation greater than the threshold parameter. If there are no
-        # such chunks returns None.
-        best_chunk = None
-        best_activation = self._threshold
-        for chunk in self.values():
-            if not conditions.keys() <= chunk.keys():
-                continue
-            for key, value in conditions.items():
-                if chunk[key] != value:
-                    break
-            else:   # this matches the for, NOT the if
-                a = chunk._activation()
-                if a >= best_activation:
-                    best_chunk = chunk
-                    best_activation = a
-        return best_chunk
-
-    def _make_noise(self, chunk):
-        if not self._noise:
-            return 0
-        if self._activation_noise_cache is not None:
-            result = self._activation_noise_cache.get(chunk._name)
-        else:
-            result = None
-        if result is None:
-            if self._next_noise_value >= NOISE_VALUES_SIZE:
-                self._noise_values = self._rng.logistic(scale=self._noise, size=NOISE_VALUES_SIZE)
-                self._next_noise_value = 0
-            result = self._noise_values[self._next_noise_value]
-            self._next_noise_value += 1
-        if self._activation_noise_cache is not None:
-            self._activation_noise_cache[chunk._name] = result
+        # TODO is there a better way to do this, maybe using np.argmax() or something?
+        activations, chunks = self._activations(Memory._ensure_slots(slots), partial=partial)
+        if not chunks:
+            return None
+        max = np.finfo(activations.dtype).min
+        best = []
+        for a, c in zip(activations, chunks):
+            if a < max:
+                pass
+            elif a > max:
+                max = a
+                best = [c]
+            else:
+                best.append(c)
+        result = random.choice(best)
+        if rehearse and result:
+            self._cite(result)
         return result
 
-    class _Activations(abc.Iterable):
-
-        def __init__(self, memory, conditions):
-            self._memory = memory
-            self._conditions = conditions
-
-        def __iter__(self):
-            self._chunks = self._memory.values().__iter__()
-            return self
-
-        def __next__(self):
-            while True:
-                chunk = self._chunks.__next__()             # pass on up the Stop Iteration
-                if self._conditions.keys() <= chunk.keys(): # subset
-                    if self._memory._mismatch is None:
-                        exact = self._conditions.keys()
-                        partial = []
-                    else:
-                        exact = []
-                        partial = []
-                        for c in self._conditions.keys():
-                            if Memory._similarity_functions.get(c):
-                                partial.append(c)
-                            else:
-                                exact.append(c)
-                    if not all(chunk[a] == self._conditions[a] for a in exact):
-                        continue
-                    activation = chunk._activation(True)
-                    if self._memory._mismatch is None:
-                        if self._memory._activation_history is not None:
-                            self._memory._activation_history[-1]["activation"] = activation
-                        return (chunk, activation)
-                    mismatch = (self._memory._mismatch
-                                * sum(self._memory._similarity(self._conditions[a], chunk[a], a) - 1
-                                      for a in partial))
-                    total = activation + mismatch
-                    if self._memory._activation_history is not None:
-                        history = self._memory._activation_history[-1]
-                        history["mismatch"] = mismatch
-                        history["activation"] = total
-                    return (chunk, total)
-
-
-    def _activations(self, conditions):
-         return self._Activations(self, conditions)
-
-    def _partial_match(self, conditions):
-        best_chunks = []
-        best_activation = self._threshold
-        for chunk, activation in self._activations(conditions):
-            if activation > best_activation:
-                best_chunks = [chunk]
-                best_activation = activation
-            elif activation == best_activation:
-                best_chunks.add(chunk)
-        return random.choice(best_chunks) if best_chunks else None
-
-    def blend(self, outcome_attribute, slots=[], advance=None):
-        """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*.
+    def blend(self, outcome_attribute, slots=[]):
+        """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*, and have activations greater than or equal to this Memory's threshold.
         Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
         that is not a real number an :exc:`Exception` is raised.
 
-        Before performing the blending operation :meth:`advance` is called with the value
-        of *advance* as its argument. If *advance* is not supplied the current value
-        of :attr:`retrieval_time_increment` is used; unless changed by the programmer this
-        default value is zero. The advance of time does not occur if an error is raised
-        when attempting to perform the blending operation.
-
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":2})
         True
+        >>> m.advance()
+        1
         >>> m.learn({"color":"blue", "size":30})
         True
+        >>> m.advance()
+        2
         >>> m.learn({"color":"red", "size":1})
         True
+        >>> m.advance()
+        3
         >>> m.blend("size", {"color":"red"})
         1.221272238515685
         """
-        slots = Memory._ensure_slots(slots)
-        old = self._advance(advance, self._retrieval_time_increment)
-        try:
-            weights = 0.0
-            weighted_outcomes = 0.0
-            if self._activation_history is not None:
-                chunk_weights = []
-            for chunk, activation in self._activations(slots):
-                if outcome_attribute not in chunk:
-                    continue
-                weight = math.exp(activation / self._temperature)
-                if self._activation_history is not None:
-                    chunk_weights.append((self._activation_history[-1], weight))
-                weights += weight
-                weighted_outcomes += weight * chunk[outcome_attribute]
-            if self._activation_history is not None:
-                for history, w in chunk_weights:
-                    try:
-                        history["retrieval_probability"] = w / weights
-                    except ZeroDivisionError:
-                        history["retrieval_probability"] = None
+        Memory._ensure_slot_name(outcome_attribute)
+        activations, chunks = self._activations(Memory._ensure_slots(slots),
+                                                extra=outcome_attribute)
+        with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             try:
-                result = weighted_outcomes / weights
-                old = None
-                return result
-            except ZeroDivisionError:
-                return None
-        finally:
-            if old is not None:
-                # Don't advance if there's an error or for some other reason we don't
-                # finish normally; note that the noise cache is still cleared, though.
-                self._time = old
+                return np.average(np.array([c[outcome_attribute] for c in chunks]),
+                                  weights=np.exp(activations / self._temperature))
+            except Exception as e:
+                raise RuntimeError(f"Error computing blended value, is perhaps the value "
+                                   f"of the {outcome_attribute} slot not numeric in one "
+                                   f"of the matching chunks? ({e})")
 
     def best_blend(self, outcome_attribute, iterable, select_attribute=None, advance=None, minimize=False):
         """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
@@ -1017,7 +994,7 @@ def use_actr_similarity(value=None):
     similarities with the most dissimilar being a negative number, usually -1, and
     completely similar being zero.
 
-    If the argument is ``False`` or ``True`` is sets the ACT-R traditional behavior
+    If the argument is ``False`` or ``True`` it sets the ACT-R traditional behavior
     on or off, and returns it. With no arguments it returns the current value.
     """
     if value is not None:
@@ -1066,8 +1043,7 @@ def set_similarity_function(function, attributes, weight=1):
 
 class Chunk(dict):
 
-    __slots__ = ["_name", "_memory", "_creation", "_references", "_reference_count",
-                 "_base_activation_time", "_base_activation"]
+    __slots__ = ["_name", "_memory", "_creation", "_references", "_reference_count" ]
 
     _name_counter = 0;
 
@@ -1077,92 +1053,15 @@ class Chunk(dict):
         self._memory = memory
         self.update(content)
         self._creation = memory._time
-        self._references = np.empty(1, dtype=int)
+        self._references = np.empty(1 if self._memory._optimized_learning != 0 else 0,
+                                    dtype=int)
         self._reference_count = 0
-        self._base_activation_time = None
-        self._base_activation = None
 
     def __repr__(self):
         return "<Chunk {} {} {}>".format(self._name, dict(self), self._reference_count)
 
     def __str__(self):
         return self._name
-
-    @property
-    def references(self):
-        """Returns when this :class:`Chunk` has been reinforced.
-        The type of the value returned depends upon whether or not the :class:`Memory`
-        containing it is using optimized learning. If it is this is an integer, the number
-        of times this :class:`Chunk` has been reinforced, and otherwise is a list of times
-        at which it was reinforced.
-        """
-        if self._memory._optimized_learning:
-            return self._reference_count
-        else:
-            return list(self._references[:self._reference_count])
-
-    def _activation(self, for_partial=False):
-        # Does not include the mismatch penalty component, that's handled by the caller.
-        base = self._get_base_activation() if self._memory._decay is not None else 0
-        noise = self._memory._make_noise(self)
-        result = base + noise
-        if self._memory._activation_history is not None:
-            history = {"name": self._name,
-                       "creation_time": self._creation,
-                       "attributes": tuple(self.items()),
-                       "references": (self._reference_count
-                                      if self._memory.optimized_learning
-                                      else tuple(self._references[:self._reference_count])),
-                       "base_activation": base,
-                       "activation_noise": noise}
-            if not for_partial:
-                history["activation"] = result
-            self._memory._activation_history.append(history)
-        return result
-
-    # Note that memoizing ln doesn't make much difference, but it does speed
-    # things up a tiny bit, most noticeably under PyPy.
-    def _cached_ln(self, arg):
-        try:
-            result = self._memory._ln_cache[arg]
-        except (IndexError, TypeError):
-            return math.log(arg)
-        if result is None:
-            result = math.log(arg)
-            self._memory._ln_cache[arg] = result
-        return result
-
-    def _get_base_activation(self):
-        if self._base_activation_time != self._memory.time:
-            err = None
-            if self._memory._optimized_learning:
-                try:
-                    self._base_activation = (self._cached_ln(self._reference_count)
-                                             - self._memory._ln_1_mius_d
-                                             - self._memory._decay * self._cached_ln(self._memory._time - self._creation))
-                except ValueError as e:
-                    err = e
-            else:
-                base = np.sum((self._memory._time - self._references[0:self._reference_count])
-                              ** -self._memory._decay)
-                if np.isfinite(base):
-                    self._base_activation = math.log(base)
-                else:
-                    err = RuntimeError(f"Non-finite value {base} encounterd when computing base activation")
-            if err:
-                if self._memory._time <= self._creation:
-                    raise RuntimeError("Can't compute activation of a chunk at or before the time it was created")
-                elif (not self._memory._optimized_learning
-                      and self._references[-1] >= self._memory._time):
-                    raise RuntimeError("Can't compute activation of a chunk at or before the time of its most recent reference")
-                else:
-                    raise err
-            self._base_activation_time = self._memory.time
-        return self._base_activation
-
-    def _clear_base_activation(self):
-        self._base_activation_time = None
-
 
 
 # Local variables:

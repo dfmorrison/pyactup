@@ -43,7 +43,7 @@ and then change to the resulting directory and type
 
 PyACTUp is released under the following MIT style license:
 
-Copyright (c) 2018-2021 Carnegie Mellon University
+Copyright (c) 2018-2022 Carnegie Mellon University
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this
 software and associated documentation files (the "Software"), to deal in the Software

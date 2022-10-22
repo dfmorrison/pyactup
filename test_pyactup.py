@@ -1,4 +1,4 @@
-# Copyright 2018-2021 Carnegie Mellon University
+# Copyright 2018-2022 Carnegie Mellon University
 
 from pyactup import *
 import pyactup
@@ -295,6 +295,7 @@ def test_cached_ln():
 
 np.seterr(divide="ignore")
 
+# TODO test to confirm that things work as expected with orders of slots flopped and so on
 def test_learn_retrieve():
     m = Memory(learning_time_increment=0)
     m.learn({"a":1, "b":"x"})
@@ -632,6 +633,7 @@ def test_fixed_noise():
         assert ah[i]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
         assert ah[i + N]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
 
+# TODO test that it still works with the order of slots flopped
 def test_forget():
     m = Memory()
     assert not m.forget({"n":1}, 0)
