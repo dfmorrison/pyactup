@@ -757,7 +757,7 @@ class Memory(dict):
                         continue
                     chunks.append(c)
         if not chunks:
-            return None         # TODO there's probably a better value to return
+            return None, None
         nchunks = len(chunks)
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             try:
@@ -856,7 +856,6 @@ class Memory(dict):
         >>> m.retrieve({"color":"blue"})["widget"]
         'snackleizer'
         """
-        # TODO is there a better way to do this, maybe using np.argmax() or something?
         activations, chunks = self._activations(Memory._ensure_slots(slots), partial=partial)
         if not chunks:
             return None
@@ -900,6 +899,8 @@ class Memory(dict):
         Memory._ensure_slot_name(outcome_attribute)
         activations, chunks = self._activations(Memory._ensure_slots(slots),
                                                 extra=outcome_attribute)
+        if not chunks:
+            return None
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             try:
                 return np.average(np.array([c[outcome_attribute] for c in chunks]),
@@ -909,7 +910,7 @@ class Memory(dict):
                                    f"of the {outcome_attribute} slot not numeric in one "
                                    f"of the matching chunks? ({e})")
 
-    def best_blend(self, outcome_attribute, iterable, select_attribute=None, advance=None, minimize=False):
+    def best_blend(self, outcome_attribute, iterable, select_attribute=None, minimize=False):
         """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
         The extreme value is normally the maximum, but can be made the minimum by setting
         *minimize* to ``True``. The *iterable* is an :class:`Iterable` of
@@ -930,60 +931,56 @@ class Memory(dict):
         first return value will be the attribute value rather than a :class:`abc.Mapping`
         object. The end of the example below demonstrates this.
 
-        Before performing the blending operations :meth:`advance` is called, only once,
-        with the value of *advance* as its argument. If *advance* is not supplied the
-        current value of :attr:`retrieval_time_increment` is used; unless changed by the
-        programmer this default value is zero. The advance of time does not occur if an
-        error is raised when attempting to perform a blending operation.
-
         >>> m = Memory()
         >>> m.learn({"color":"red", "utility":1})
         True
+        >>> m.advance()
+        1
         >>> m.learn({"color":"blue", "utility":2})
         True
+        >>> m.advance()
+        2
         >>> m.learn({"color":"red", "utility":1.8})
         True
+        >>> m.advance()
+        3
         >>> m.learn({"color":"blue", "utility":0.9})
         True
+        >>> m.advance()
+        4
         >>> m.best_blend("utility", ({"color": c} for c in ("red", "blue")))
         ({'color': 'blue'}, 1.5149259914576285)
         >>> m.learn({"color":"blue", "utility":-1})
         True
+        >>> m.advance()
+        5
         >>> m.best_blend("utility", ("red", "blue"), "color")
         ('red', 1.060842632215651)
         """
         comparator = operator.gt if not minimize else operator.lt
-        old = self._advance(advance, self._retrieval_time_increment)
-        try:
-            best_value = -math.inf if not minimize else math.inf
-            best_args = []
-            for thing in iterable:
-                if select_attribute is not None:
-                    slots = { select_attribute : thing }
-                else:
-                    slots = thing
-                value = self.blend(outcome_attribute, slots, advance=0)
-                if value is None:
-                    pass
-                elif value == best_value:
-                    best_args.append(slots)
-                elif comparator(value, best_value):
-                    best_args = [ slots ]
-                    best_value = value
-            old = None
-            if best_args:
-                result = random.choice(best_args)
-                if select_attribute is not None:
-                    result = result[select_attribute]
-                return result, best_value
+        best_value = -math.inf if not minimize else math.inf
+        best_args = []
+        for thing in iterable:
+            if select_attribute is not None:
+                slots = { select_attribute : thing }
             else:
-                return None, None
-        finally:
-            if old is not None:
-                # Don't advance if there's an error or for some other reason we don't
-                # finish normally; note that the noise cache is still cleared, though.
-                self._time = old
-
+                slots = thing
+            value = self.blend(outcome_attribute, slots, advance=0)
+            if value is None:
+                pass
+            elif value == best_value:
+                best_args.append(slots)
+            elif comparator(value, best_value):
+                best_args = [ slots ]
+                best_value = value
+        old = None
+        if best_args:
+            result = random.choice(best_args)
+            if select_attribute is not None:
+                result = result[select_attribute]
+            return result, best_value
+        else:
+            return None, None
 
 def use_actr_similarity(value=None):
     """Whether to use "natural" similarity values, or traditional ACT-R ones.
