@@ -1096,15 +1096,15 @@ class Chunk(dict):
 
     @property
     def references(self):
-        """A tuple of real numbers, the times at which that this :class:`Chunk` has been reinforced.
+        """A list of real numbers, the times at which that this :class:`Chunk` has been reinforced.
         If :attr:`optimized_learning` is being used this may be just the most recent
-        reinforcements, or an empty tuple, depending upon the value of
+        reinforcements, or an empty list, depending upon the value of
         :attr:`optimized_learning`
         """
-        return tuple(self._references[:(self._reference_count
-                                        if self._memory._optimized_learning is None
-                                        else min(self._reference_count,
-                                                 self._optimized_learning))])
+        return list(self._references[:(self._reference_count
+                                       if self._memory._optimized_learning is None
+                                       else min(self._reference_count,
+                                                self._memory._optimized_learning))])
 
 
 # Local variables:

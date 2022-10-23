@@ -113,28 +113,21 @@ def test_time():
     assert isclose(m.time, 13.5)
     m.reset()
     m.learn({"foo":1})
+    assert m.time == 0
+    m.advance()
     assert m.time == 1
-    m.learn({"foo":2}, advance=2)
-    assert m.time == 3
-    m.learn({"foo":3}, advance=0)
-    assert m.time == 3
-    m.retrieve({"foo":3}, advance=7)
-    assert m.time == 10
     m.retrieve({"foo":3})
-    assert m.time == 10
-    m.blend("foo", advance=1)
-    assert m.time == 11
-    with pytest.raises(ValueError):
-        m.learn({"foo":9}, advance=-0.1)
-    with pytest.raises(ValueError):
-        m.retrieve({"foo":9}, advance=-10)
-    with pytest.raises(ValueError):
-        m.retrieve({"foo":9}, advance=-10, partial=True)
-    with pytest.raises(ValueError):
-        m.blend("foo", advance=-11)
+    assert m.time == 1
+    m.blend("foo")
+    assert m.time == 1
+    m.learn({"foo":2})
+    with pytest.raises(RuntimeError):
+        m.retrieve()
+    with pytest.raises(RuntimeError):
+        m.blend("foo")
 
 def test_reset():
-    m = Memory(learning_time_increment=0)
+    m = Memory()
     assert m.optimized_learning == False
     assert m.time == 0
     m.learn({"species":"African Swallow", "range":"400"})
@@ -147,16 +140,18 @@ def test_reset():
     assert len(m) == 2
     assert m.time == 0
     m.reset()
+    assert m.time == 0
     m.advance(2.5)
     assert m.optimized_learning == False
     assert len(m) == 0
     assert m.time == 2.5
-    m.reset(optimized_learning=True)
-    assert m.optimized_learning == True
+    m.reset()
+    assert m.optimized_learning == False
     assert len(m) == 0
     assert m.time == 0
+    m.optimized_learning = 4
     m.reset()
-    assert m.optimized_learning == True
+    assert m.optimized_learning == 4
     assert len(m) == 0
     assert m.time == 0
     m.learn({"species":"African Swallow", "range":"400"})
@@ -170,25 +165,17 @@ def test_reset():
     m.advance()
     assert len(m) == 2
     assert m.time == 2
-    m.reset(optimized_learning=False)
-    assert m.optimized_learning == False
+    m.reset()
+    assert m.optimized_learning == 4
     assert len(m) == 0
     assert m.time == 0
+    m.optimized_learning = False
     m.learn({"species":"African Swallow", "range":"400"})
     m.learn({"species":"European Swallow", "range":"300"})
     m.advance()
     m.learn({"species":"Python", "range":"300"})
     assert len(m) == 3
     assert m.time == 1
-    m.reset(True)
-    assert len(m) == 2
-    assert m.time == 0
-    m.learn({"species":"African Swallow", "range":"400"})
-    m.learn({"species":"European Swallow", "range":"300"})
-    assert len(m) == 2
-    m.reset(False)
-    assert len(m) == 0
-    assert m.time == 0
 
 def test_noise():
     m = Memory()
@@ -235,45 +222,44 @@ def test_decay():
         m.decay = -1
     m.decay = 0.435
     assert isclose(m.decay, 0.435)
-    m.reset(optimized_learning=True)
+    m.reset()
+    m.optimized_learning = True
     with pytest.raises(ValueError):
         m.decay = 1
     with pytest.raises(ValueError):
         m.decay = 3.14159265359
-    m.reset(optimized_learning=False)
+    m.optimized_learning = False
     m.decay = 1
-    with pytest.raises(RuntimeError):
-        m.reset(optimized_learning=True)
+    with pytest.raises(ValueError):
+        m.optimized_learning = True
     m.decay = 2.7182818
-    with pytest.raises(RuntimeError):
-        m.reset(optimized_learning=True)
-    m.reset(False)
+    with pytest.raises(ValueError):
+        m.optimized_learning = True
+    m.reset()
     m.temperature = 1
     m.noise = 0
     m.decay = 0
     m.learn({"foo":1})
     m.advance(3)
-    assert m.time == 4
-    m.learn({"foo":1}, advance=0)
-    m.advance(7)
-    c = m.retrieve({"foo":1})
-    assert isclose(c._activation(), 0.6931471805599453)
-    m.decay = None
-    assert c._activation() == 0
-    m.decay = 0.8
-    assert isclose(c._activation(), -1.0281200094565899)
-    m.reset(optimized_learning=True)
-    m.learn({"foo":1}, advance=0)
-    m.advance(4)
-    m.learning_time_increment = 0
+    assert m.time == 3
     m.learn({"foo":1})
     m.advance(7)
     c = m.retrieve({"foo":1})
-    assert isclose(c._activation(), 0.3842688747553493)
+    assert isclose(m._activations({})[0][0], 0.6931471805599453)
     m.decay = None
-    assert c._activation() == 0
+    assert isclose(m._activations({})[0][0], 0.0)
+    m.decay = 0.8
+    assert isclose(m._activations({})[0][0], -0.9961078949810501)
+    m.reset()
+    m.learn({"foo":1})
+    m.advance(4)
+    m.learn({"foo":1})
+    m.advance(7)
+    c = m.retrieve({"foo":1})
+    m.decay = None
+    assert isclose(m._activations({})[0][0], 0.0)
     m.decay = 0
-    assert isclose(c._activation(), 0.6931471805599453)
+    assert isclose(m._activations({})[0][0], 0.6931471805599453)
 
 def test_threshold():
     m = Memory()
@@ -281,9 +267,18 @@ def test_threshold():
     m.threshold = None
     assert m.threshold is None
     m.threshold = -sys.float_info.max
-    assert m.threshold is None
+    assert m.threshold == -sys.float_info.max
     with pytest.raises(ValueError):
         m.threshold = "string"
+    m = Memory(temperature=1, noise=0, threshold=-3)
+    for ol in [False, True, 1, 2]:
+        m.reset()
+        m.learn({"cheese": "tilset"})
+        m.advance(100)
+        assert m.retrieve() is not None
+        m.advance(1000)
+        assert m.retrieve() is None
+
 
 def test_mismatch():
     m = Memory()
@@ -299,26 +294,11 @@ def test_mismatch():
     with pytest.raises(ValueError):
         m.mismatch = -1
 
-def test_cached_ln():
-    m = Memory()
-    m.learn({"a":1})
-    m.advance()
-    c = m.retrieve({"a":1})
-    for d in (0.123, 0.432, 0.897):
-        m.decay = d
-        assert sum(map(bool, m._ln_cache)) == 0
-        assert isclose(c._cached_ln(7), math.log(7))
-        assert sum(map(bool, m._ln_cache)) == 1
-        for i in range(pyactup.LN_CACHE_SIZE + 10):
-            assert isclose(c._cached_ln(i + 1), math.log(i + 1))
-        assert isclose(c._cached_ln(d), math.log(d))
-        assert isclose(c._cached_ln(7), math.log(7))
-
-np.seterr(divide="ignore")
+# np.seterr(divide="ignore")
 
 # TODO test to confirm that things work as expected with orders of slots flopped and so on
 def test_learn_retrieve():
-    m = Memory(learning_time_increment=0)
+    m = Memory()
     m.learn({"a":1, "b":"x"})
     m.learn({"a":2, "b":"y"})
     m.learn({"a":3, "b":"z"})
@@ -336,13 +316,13 @@ def test_learn_retrieve():
     m.reset()
     m.learn({"color":"red", "size":1})
     m.advance()
-    m.learn({"color":"blue", "size":1})
+    m.learn({"size":1, "color":"blue"})
     m.advance()
     m.learn({"color":"red", "size":2})
     m.advance(100)
     m.learn({"color":"red", "size":1})
     m.advance()
-    m.learn({"color":"red", "size":1})
+    m.learn({"size":1, "color":"red"})
     m.advance()
     assert sum(m.retrieve({"color":"red"})["size"] == 1 for i in range(100)) > 95
     m.retrieve({"size":2}, rehearse=True)
@@ -351,6 +331,20 @@ def test_learn_retrieve():
     m.learn({"color":"red", "size":1})
     with pytest.raises(RuntimeError):
         m.retrieve({"color":"red"})
+    m.reset()
+    m.learn({"kind": "tilset", "ripeness": 9, "weight": 1.2})
+    m.advance()
+    m.learn({"kind": "limburger", "ripeness": 8, "weight": 0.9})
+    m.advance()
+    m.learn({"kind": "tilset", "ripeness": 4, "weight": 1.3})
+    m.advance()
+    m.learn({"ripeness": 9, "kind": "tilset", "weight": 1.2})
+    m.advance()
+    m.learn({"weight": 1.2, "kind": "tilset", "ripeness": 9 })
+    m.advance()
+    m.learn({"kind": "tilset", "weight": 1.1, "ripeness": 9 })
+    m.advance()
+    print(m._activations({}))
 
 def test_similarity():
     def sim(x, y):
@@ -680,25 +674,107 @@ def test_forget():
     assert m.chunks[0].references == 2
 
 def test_chunks_and_references():
+    # We're depending upon chunks being in initial insertion order here; is that really
+    # part of our contract, or is it just an unsupported artifact of how dicts now work?
     m = Memory()
     assert len(m.chunks) == 0
     m.learn({"n":1})
+    m.advance()
+    assert len(m.chunks) == 1
+    assert m.chunks[0].reference_count == 1
+    assert m.chunks[0].references == [0]
+    m.learn({"n":2})
+    m.advance()
+    assert len(m.chunks) == 2
+    m.learn({"n":1})
+    m.advance()
+    assert len(m.chunks) == 2
+    assert m.chunks[0].reference_count == 2
+    assert m.chunks[0].references == [0, 2]
+    assert m.chunks[1].reference_count == 1
+    assert m.chunks[1].references == [1]
+    m.reset()
+    m.optimized_learning = True
+    assert len(m.chunks) == 0
+    m.learn({"n":1})
+    m.advance()
+    assert len(m.chunks) == 1
+    assert m.chunks[0].references == []
+    m.learn({"n":2})
+    m.advance()
+    assert len(m.chunks) == 2
+    m.learn({"n":1})
+    m.advance()
+    assert len(m.chunks) == 2
+    assert m.chunks[0].reference_count == 2
+    assert m.chunks[0].references == []
+    assert m.chunks[1].reference_count == 1
+    assert m.chunks[1].references == []
+    m.reset()
+    m.optimized_learning = 1
+    assert len(m.chunks) == 0
+    m.learn({"n":1})
+    m.advance()
     assert len(m.chunks) == 1
     assert m.chunks[0].references == [0]
     m.learn({"n":2})
+    m.advance()
     assert len(m.chunks) == 2
     m.learn({"n":1})
+    m.advance()
     assert len(m.chunks) == 2
-    assert m.chunks[0].references == [0, 2]
+    assert m.chunks[0].reference_count == 2
+    assert m.chunks[0].references == [2]
+    assert m.chunks[1].reference_count == 1
     assert m.chunks[1].references == [1]
-    m.reset(optimized_learning=True)
-    assert len(m.chunks) == 0
-    m.learn({"n":1})
-    assert len(m.chunks) == 1
-    assert m.chunks[0].references == 1
-    m.learn({"n":2})
-    assert len(m.chunks) == 2
-    m.learn({"n":1})
-    assert len(m.chunks) == 2
-    assert m.chunks[0].references == 2
-    assert m.chunks[1].references == 1
+    def f(ol):
+        m.reset()
+        m.optimized_learning = ol
+        m.learn({"a1":1, "a2":2, "a3":3})
+        m.learn({"a2":2, "a1":1, "a3":3})
+        m.advance()
+        m.learn({"a3":3, "a1":1, "a2":2})
+        m.advance()
+        m.learn({"a3":3, "a1":1, "a2":20})
+        m.advance()
+        m.learn({"a3":3, "a2":2, "a1":1})
+        m.learn({"a1":10, "a3":3, "a2":2})
+        m.advance()
+        m.learn({"a1":1, "a3":3, "a2":2})
+        m.learn({"a1":1, "a3":3, "a2":2})
+        m.advance()
+        m.learn({"a2":2, "a3":3, "a1":1})
+        m.advance()
+        m.learn({"a2":2, "a1":1, "a3":3})
+        m.advance()
+        m.learn({"a1":1, "a3":3, "a2":2})
+        m.advance()
+        m.learn({"a3":3, "a1":1, "a2":20})
+        assert len(m.chunks) == 3
+        assert m.chunks[0].reference_count == 9
+        assert m.chunks[1].reference_count == 2
+        assert m.chunks[2].reference_count == 1
+    f(False)
+    assert m.chunks[2].references == [3]
+    assert m.chunks[0].references == [0, 0, 1, 3, 4, 4, 5, 6, 7]
+    assert m.chunks[1].references == [2, 8]
+    f(True)
+    assert m.chunks[0].references == []
+    assert m.chunks[1].references == []
+    assert m.chunks[2].references == []
+    f(5)
+    assert m.chunks[0].references == [4, 4, 5, 6, 7]
+    assert m.chunks[1].references == [2, 8]
+    assert m.chunks[2].references == [3]
+    f(4)
+    assert m.chunks[0].references == [4, 5, 6, 7]
+    assert m.chunks[1].references == [2, 8]
+    assert m.chunks[2].references == [3]
+    f(2)
+    assert m.chunks[0].references == [6, 7]
+    assert m.chunks[1].references == [2, 8]
+    assert m.chunks[2].references == [3]
+    f(1)
+    assert m.chunks[0].references == [7]
+    assert m.chunks[1].references == [8]
+    assert m.chunks[2].references == [3]
