@@ -435,7 +435,7 @@ class Memory(dict):
 
         Optimized learning can only be used if the :attr:`decay` is less than one.
         Attempting to set this parameter to ``True`` or an integer when :attr:`decay` is
-        one or greater raises a :exc:`RuntimeError`.
+        one or greater raises a :exc:`ValueError`.
 
         The value of this attributed can only be changed when the :class:`Memory` object
         does not contain any chunks, typically immediately after it is created or
@@ -466,10 +466,10 @@ class Memory(dict):
             except:
                 v = -1
             if v < 1:
-                raise RuntimeError(f"The value of optimized learning must be a Boolean "
+                raise ValueError(f"The value of optimized learning must be a Boolean "
                                    f"or a positive integer, not {value}")
         if v is not None and self._decay and self._decay >= 1:
-            raise RuntimeError(f"Optimized learning cannot be used when the decay, "
+            raise ValueError(f"Optimized learning cannot be used when the decay, "
                                f"{self.decay}, is greater than or equal to one.")
         if self and v != self._optimized_learning:
             raise RuntimeError("Cannot change optimized learning for a Memory that "

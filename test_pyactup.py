@@ -19,8 +19,6 @@ def test_parameter_manipulation():
     assert isclose(m._temperature, 0.3535534, rel_tol=0.0001)
     assert m.threshold == -10.0
     assert m.mismatch is None
-    assert m.learning_time_increment == 1
-    assert m.retrieval_time_increment == 0
     assert m.optimized_learning == False
     m.temperature = False
     assert m.temperature is None
@@ -30,32 +28,22 @@ def test_parameter_manipulation():
     m.temperature = 0.7
     m.threshold = -8
     m.mismatch = 1
-    m.learning_time_increment = 0
-    m.retrieval_time_increment = 0.050
+    m.optimized_learning = 4
     assert m.noise == 0.35
     assert m.decay == 0.6
     assert m.temperature == 0.7
     assert m._temperature == 0.7
     assert m.threshold == -8
     assert m.mismatch == 1.0
-    assert m.learning_time_increment == 0
-    assert m.retrieval_time_increment == 0.050
-    assert m.optimized_learning == False
-    assert m.optimized_learning == False
-    m = Memory(0.15, 0.4, 1.1, -9, 0, 2.1, 0.1, 1)
+    assert m.optimized_learning == 4
+    m = Memory(0.15, 0.4, 1.1, -9, 0, True)
     assert m.noise == 0.15
     assert m.decay == 0.4
     assert m.temperature == 1.1
     assert m._temperature == 1.1
     assert m.threshold == -9
     assert m.mismatch == 0.0
-    assert m.learning_time_increment == 2.1
-    assert m.retrieval_time_increment == 0.1
     assert m.optimized_learning == True
-    m.learning_time_increment = None
-    m.retrieval_time_increment = None
-    assert m.learning_time_increment == 0
-    assert m.retrieval_time_increment == 0
     with pytest.raises(ValueError):
         m.temperature = 0
     assert m.temperature == 1.1
@@ -66,19 +54,52 @@ def test_parameter_manipulation():
     with pytest.raises(ValueError):
         m.decay = -0.5
     assert m.decay == 0.4
+    m.optimized_learning = True
+    assert m.optimized_learning == True
+    m.optimized_learning = False
+    assert m.optimized_learning == False
+    m.optimized_learning = 0
+    assert m.optimized_learning == True
+    m.optimized_learning = None
+    assert m.optimized_learning == False
+    m.optimized_learning = 1
+    assert m.optimized_learning == 1
+    m.optimized_learning = 1000
+    assert m.optimized_learning == 1000
     with pytest.raises(ValueError):
         m.mismatch = -0.1
     assert m.mismatch == 0.0
-    with pytest.raises(ValueError):
-        m.learning_time_increment = -0.0001
-    with pytest.raises(ValueError):
-        m.retrieval_time_increment = -0.0001
     with pytest.warns(UserWarning):
         m = Memory(noise=0)
     m = Memory(decay=5)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError):
+        m.optimized_learning = True
+    with pytest.raises(ValueError):
+        m.optimized_learning = 1
+    m = Memory(optimized_learning=True)
+    with pytest.raises(ValueError):
+        m.decay = 1
+    m = Memory(optimized_learning=4)
+    with pytest.raises(ValueError):
+        m.decay = 1
+    with pytest.raises(ValueError):
+        m.optimized_learning = 0.5
+    with pytest.raises(ValueError):
         m = Memory(decay=5, optimized_learning=True)
-    m = Memory(noise=0, temperature=0.8)
+    m = Memory()
+    m.learn({"foo": "bar"})
+    with pytest.raises(RuntimeError):
+        m.optimized_learning = True
+    with pytest.raises(RuntimeError):
+        m.optimized_learning = 1
+    m = Memory(optimized_learning=True)
+    m.learn({"foo": "bar"})
+    with pytest.raises(RuntimeError):
+        m.optimized_learning = False
+    m = Memory(optimized_learning=1)
+    m.learn({"foo": "bar"})
+    with pytest.raises(RuntimeError):
+        m.optimized_learning = False
 
 def test_time():
     m = Memory()
