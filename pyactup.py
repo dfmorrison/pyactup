@@ -105,9 +105,9 @@ class Memory(dict):
                  threshold=DEFAULT_THRESHOLD,
                  mismatch=None,
                  optimized_learning=False):
+        self._fixed_noise = None
+        self._fixed_noise_time = None
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
-        self._activation_noise_cache = None
-        self._activation_noise_cache_time = None
         self._noise = None
         self._decay = None
         self._optimized_learning = None
@@ -146,14 +146,8 @@ class Memory(dict):
                 v._references = np.empty(1, dtype=int) if self._optimized_learning else np.array([0])
                 v._reference_count = 1
                 self[k] = v
-        self._clear_noise_cache()
+        self._clear_fixed_noise()
 
-    def _clear_noise_cache(self):
-        if self._activation_noise_cache is not None:
-            self._activation_noise_cache.clear()
-            self._activation_noise_cache_time = self._time
-
-    # TODO figure out how to do fixed_noise in the new implementation
     @property
     @contextmanager
     def fixed_noise(self):
@@ -212,13 +206,21 @@ class Memory(dict):
           'activation_noise': 0.8614281690342627,
           'activation': 0.8614281690342627}]
         """
-        self._activation_noise_cache = {}
-        self._activation_noise_cache_time = self._time
+        old_fixed_noise = self._fixed_noise
+        old_fixed_noise_time = self._fixed_noise_time
         try:
+            if self._fixed_noise is None:
+                self._fixed_noise = dict()
+                self._fixed_noise_time = self._time
             yield self
         finally:
-            self._activation_noise_cache = None
-            self._activation_noise_cache_time = None
+            self._fixed_noise = old_fixed_noise
+            self._fixed_noise_time = old_fixed_noise_time
+
+    def _clear_fixed_noise(self):
+        if self._fixed_noise:
+            self._fixed_noise.clear()
+            self._fixed_noise_time = self._time
 
     @property
     def time(self):
@@ -236,7 +238,7 @@ class Memory(dict):
             raise ValueError(f"Time cannot be advanced backward ({amount})")
         if amount:
             self._time += amount
-            self._clear_noise_cache()
+            self._clear_fixed_noise()
         return self._time
 
     @property
@@ -303,7 +305,7 @@ class Memory(dict):
                 self._temperature = t
         if value != self._noise:
             self._noise = value
-            self._clear_noise_cache()
+            self._clear_fixed_noise()
 
     @property
     def decay(self):
@@ -481,9 +483,6 @@ class Memory(dict):
         In addition to activation computations, the resulting retrieval probabilities are
         also collected for blending operations.
         The details collected are presented as dictionaries.
-        The ``references`` entries in these dictionaries are sequences of times the
-        corresponding chunks were learned, if :attr:`optimizied_learning` is off, and
-        otherwise are counts of the number of times they have been learned.
 
         If PyACTUp is being using in a loop, the details collected will likely become
         voluminous. It is usually best to clear them frequently, such as on each
@@ -585,6 +584,7 @@ class Memory(dict):
         else:
             return lst[:3].__repr__()[1:-1] + ", ... " + lst[-3:].__repr__()[1:-1]
 
+    # TODO which of these are still needed?
     _use_actr_similarity = False
     _minimum_similarity = 0
     _maximum_similarity = 1
@@ -804,9 +804,32 @@ class Memory(dict):
                         result = np.log(result + tmp.filled(0))
                 else:
                     result = np.zeros(nchunks)
+                if self._activation_history is not None:
+                    initial_history_length = len(self._activation_history)
+                    for c, r in zip(chunks, result):
+                        self._activation_history.append({"name": c._name,
+                                                         "creation_time": c._creation,
+                                                         "attributes": tuple(c.items()),
+                                                         "reference_count": c.reference_count,
+                                                         "references": c.references,
+                                                         "base_level_activation": r})
                 if self._noise:
                     noise = self._rng.logistic(scale=self._noise, size=nchunks)
+                    if self._fixed_noise is not None:
+                        if self._fixed_noise_time != self._time:
+                            self._clear_fixed_noise()
+                            for c, s in zip(chunks, noise):
+                                self._fixed_noise[c._name] = s
+                        else:
+                            for c, s, i in zip(chunks, noise, count()):
+                                if x := self._fixed_noise.get(c._name):
+                                    noise[i] = x
+                                else:
+                                    self._fixed_noise[c._name] = s
                     result += noise
+                    if self._activation_history is not None:
+                        for i, s in zip(count(initial_history_length), noise):
+                            self._activation_history[i]["activation_noise"] = s
                 if partial_slots:
                     # TODO work out if this is better than doing it all row by row; for vectorize f?
                     # TODO figure out weights and similarity caching
@@ -816,12 +839,17 @@ class Memory(dict):
                         sims[i] = [f(c[n], v) for n, v, f in partial_slots]
                     sims = np.sum(sims, 1) * self._mismatch
                     # TODO add it in
+                    # TODO include it in the activation history
+                if self._activation_history is not None:
+                    for i, r in zip(count(initial_history_length), result):
+                        self._activation_history[i]["activation"] = r
+                        if self._threshold is not None:
+                            self._activation_history[i]["meets_threshold"] = (r >= self._threshold)
                 if self._threshold is not None:
                     m = ma.masked_less(result, self._threshold)
                     if ma.is_masked(m):
                         chunks = ma.array(chunks, mask=ma.getmask(m)).compressed()
                         result = m.compressed()
-                # TODO deal with activation_history
             except FloatingPointError as e:
                 raise RuntimeError(f"Error when computing activations, perhaps a chunk's "
                                    f"creation or reinforcement time is not in the past? ({e})")
@@ -1059,6 +1087,24 @@ class Chunk(dict):
 
     def __str__(self):
         return self._name
+
+    @property
+    def reference_count(self):
+        """A non-negative integer, the number of times that this :class:`Chunk` has been reinforced.
+        """
+        return self._reference_count
+
+    @property
+    def references(self):
+        """A tuple of real numbers, the times at which that this :class:`Chunk` has been reinforced.
+        If :attr:`optimized_learning` is being used this may be just the most recent
+        reinforcements, or an empty tuple, depending upon the value of
+        :attr:`optimized_learning`
+        """
+        return tuple(self._references[:(self._reference_count
+                                        if self._memory._optimized_learning is None
+                                        else min(self._reference_count,
+                                                 self._optimized_learning))])
 
 
 # Local variables:
