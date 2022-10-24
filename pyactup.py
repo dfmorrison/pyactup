@@ -936,6 +936,20 @@ class Memory(dict):
             self._cite(result)
         return result
 
+    def _blend(self, outcome_attribute, slots):
+        Memory._ensure_slot_name(outcome_attribute)
+        activations, chunks = self._activations(Memory._ensure_slots(slots),
+                                                extra=outcome_attribute)
+        if not chunks:
+            return None, None
+        with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
+            wp = np.exp(activations / self._temperature)
+            wp /= np.sum(wp)
+            if self._activation_history is not None:
+                for p, i in zip(wp, count(len(self._activation_history) - wp.size)):
+                    self._activation_history[i]["retrieval_probability"] = p
+        return wp, chunks
+
     def blend(self, outcome_attribute, slots={}):
         """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*, and have activations greater than or equal to this Memory's threshold.
         Returns ``None`` if there are no matching chunks that contain
@@ -958,26 +972,18 @@ class Memory(dict):
         >>> m.blend("size", {"color":"red"})
         1.221272238515685
         """
-        Memory._ensure_slot_name(outcome_attribute)
-        activations, chunks = self._activations(Memory._ensure_slots(slots),
-                                                extra=outcome_attribute)
+        probs, chunks = self._blend(outcome_attribute, slots)
         if not chunks:
             return None
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             try:
-                weights = np.exp(activations / self._temperature)
-                if self._activation_history is not None:
-                    total = np.sum(weights)
-                    for p, i in zip(weights / total,
-                                    count(len(self._activation_history) - weights.size)):
-                        self._activation_history[i]["retrieval_probability"] = p
                 return np.average(np.array([c[outcome_attribute] for c in chunks],
                                            dtype=np.float64),
-                                  weights=weights)
+                                  weights=probs)
             except Exception as e:
                 raise RuntimeError(f"Error computing blended value, is perhaps the value "
-                                   f"of the {outcome_attribute} slot not numeric in one "
-                                   f"of the matching chunks? ({e})")
+                                   f"of the {outcome_attribute} slotis  not numeric in "
+                                   f"one of the matching chunks? ({e})")
 
     def best_blend(self, outcome_attribute, iterable, select_attribute=None, minimize=False):
         """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
@@ -1076,16 +1082,11 @@ class Memory(dict):
         >>> m.discrete_blend("kind", {"age": "old"})
         ('tilset', (('tilset', 0.9540373563209859), ('limburger', 0.04596264367901423)))
         """
-        Memory._ensure_slot_name(outcome_attribute)
-        activations, chunks = self._activations(Memory._ensure_slots(slots),
-                                                extra=outcome_attribute)
+        probs, chunks = self._blend(outcome_attribute, slots)
         if not chunks:
             return None, None
-        with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
-            cprobs = np.exp(activations / self._temperature)
-            cprobs /= np.sum(cprobs)
         candidates = defaultdict(list)
-        for c, p in zip(chunks, cprobs):
+        for c, p in zip(chunks, probs):
             candidates[c[outcome_attribute]].append(p)
         best = []
         best_value = -math.inf
