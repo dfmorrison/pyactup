@@ -143,7 +143,7 @@ class Memory(dict):
         self._time = 0
         if preserve_prepopulated:
             for k, v in preserved.items():
-                v._references = np.empty(1, dtype=int) if self._optimized_learning else np.array([0])
+                v._references = np.empty(1, dtype=np.int32) if self._optimized_learning else np.array([0])
                 v._reference_count = 1
                 self[k] = v
         self._clear_fixed_noise()
@@ -743,7 +743,7 @@ class Memory(dict):
         if partial and self._mismatch:
             exact_slots =[]
             for n, v in conditions.items():
-                if f := Memory._similarity_functions.get(s):
+                if f := Memory._similarity_functions.get(n):
                     partial_slots.append((n, v, f))
                 else:
                     exact_slots.append((n, v))
@@ -853,7 +853,10 @@ class Memory(dict):
             except FloatingPointError as e:
                 raise RuntimeError(f"Error when computing activations, perhaps a chunk's "
                                    f"creation or reinforcement time is not in the past? ({e})")
-        return result, chunks
+        if result.size == 0:
+            return None, None
+        else:
+            return result, chunks
 
     def retrieve(self, slots={}, partial=False, rehearse=False):
         """Returns the chunk matching the *slots* that has the highest activation greater than or equal to this Memory's :attr:`threshold`.
@@ -885,7 +888,7 @@ class Memory(dict):
         'snackleizer'
         """
         activations, chunks = self._activations(Memory._ensure_slots(slots), partial=partial)
-        if not chunks:
+        if chunks is None:
             return None
         max = np.finfo(activations.dtype).min
         best = []
@@ -931,8 +934,15 @@ class Memory(dict):
             return None
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             try:
-                return np.average(np.array([c[outcome_attribute] for c in chunks]),
-                                  weights=np.exp(activations / self._temperature))
+                weights = np.exp(activations / self._temperature)
+                if self._activation_history is not None:
+                    total = np.sum(weights)
+                    for p, i in zip(weights / total,
+                                    count(len(self._activation_history) - weights.size)):
+                        self._activation_history[i]["retrieval_probability"] = p
+                return np.average(np.array([c[outcome_attribute] for c in chunks],
+                                           dtype=np.float64),
+                                  weights=weights)
             except Exception as e:
                 raise RuntimeError(f"Error computing blended value, is perhaps the value "
                                    f"of the {outcome_attribute} slot not numeric in one "
@@ -993,7 +1003,7 @@ class Memory(dict):
                 slots = { select_attribute : thing }
             else:
                 slots = thing
-            value = self.blend(outcome_attribute, slots, advance=0)
+            value = self.blend(outcome_attribute, slots)
             if value is None:
                 pass
             elif value == best_value:
@@ -1079,7 +1089,7 @@ class Chunk(dict):
         self.update(content)
         self._creation = memory._time
         self._references = np.empty(1 if self._memory._optimized_learning != 0 else 0,
-                                    dtype=int)
+                                    dtype=np.int32)
         self._reference_count = 0
 
     def __repr__(self):
