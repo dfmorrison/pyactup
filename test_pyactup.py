@@ -108,8 +108,6 @@ def test_time():
     assert m.time == 1
     m.advance(12.5)
     assert isclose(m.time, 13.5)
-    with pytest.raises(ValueError):
-        m.advance(-0.001)
     assert isclose(m.time, 13.5)
     m.reset()
     m.learn({"foo":1})
@@ -125,6 +123,22 @@ def test_time():
         m.retrieve()
     with pytest.raises(RuntimeError):
         m.blend("foo")
+    m.learn({"foo":3}, advance=True)
+    assert m.time == 2
+    m.learn({"foo":3}, advance=17)
+    assert m.time == 19
+    m.advance(-1)
+    assert m.time == 18
+    m.advance(-1)
+    assert m.time == 17
+    m.learn({"foo":4}, advance=-1)
+    assert m.time == 16
+    m.advance(-0.01)
+    assert isclose(m.time, 15.99)
+    m.learn({"foo":5}, advance=-0.1)
+    assert isclose(m.time, 15.89)
+    with pytest.raises(Exception):
+        m.advance("cheese Grommit?")
 
 def test_reset():
     m = Memory()

@@ -232,11 +232,16 @@ class Memory(dict):
 
     def advance(self, amount=1):
         """Adds the given *amount*, which defaults to 1, to this Memory's time, and returns the new, current time.
-        Raises a :exc:`ValueError` if *amount* is negative, or not a real number.
+        Raises an :exc:`Exception` if *amount* is neither a real number nor ``None``.
+
+        .. warning::
+            While *amount* can be negative, this is rarely appropriate. Backward time can
+            easily result in biologically implausible models, and attempts to perform
+            retrievals or similar operations at times preceding those at which relevant
+            chunks were created will result in infinite or complex valued base-level
+            activations and raise :exc:`Exception`s.
         """
-        if amount < 0:
-            raise ValueError(f"Time cannot be advanced backward ({amount})")
-        if amount:
+        if amount is not None:
             self._time += amount
             self._clear_fixed_noise()
         return self._time
