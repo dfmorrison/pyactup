@@ -163,6 +163,8 @@ class Memory(dict):
         >>> m = Memory()
         >>> m.learn(color="red")
         True
+        >>> m.advance()
+        1
         >>> m.activation_history = []
         >>> m.retrieve()
         <Chunk 0000 {'color': 'red'}>
@@ -261,23 +263,32 @@ class Memory(dict):
 
         >>> m = Memory(temperature=1, noise=0)
         >>> m.learn(size=1)
+        Traceback (most recent call last):
+          File "<stdin>", line 1, in <module>
+        TypeError: learn() got an unexpected keyword argument 'size'
+        >>>
+        >>>
+        >>> m = Memory(temperature=1, noise=0)
+        >>> m.learn({"size": 1})
         True
         >>> m.advance(10)
-        11
-        >>> m.learn(size=10)
+        10
+        >>> m.learn({"size": 10})
         True
+        >>> m.advance()
+        11
         >>> m.blend("size")
-        7.983916860341838
+        7.9150376886801395
         >>> with m.current_time as t:
         ...     m.advance(10_000)
         ...     m.blend("size")
         ...     (t, m.time)
         ...
-        10012
-        5.501236696240907
-        (12, 10012)
+        10011
+        5.501124325474942
+        (11, 10011)
         >>> m.time
-        12
+        11
         """
         old = self._time
         try:
@@ -497,30 +508,38 @@ class Memory(dict):
         :class:`MutableSequence` raises a :exc:`ValueError`.
 
         >>> m = Memory()
-        >>> m.learn(color="red", size=3)
+        >>> m.learn({"color": "red", "size": 3})
         True
-        >>> m.learn(color="red", size=5)
+        >>> m.advance()
+        1
+        >>> m.learn({"color": "red", "size": 5})
         True
+        >>> m.advance()
+        2
         >>> m.activation_history = []
-        >>> m.blend("size", color="red")
-        4.027391084562462
+        >>> m.blend("size", {"color": "red"})
+        4.810539051819914
         >>> pprint(m.activation_history, sort_dicts=False)
-        [{'name': '0000',
+        [{'name': '0005',
           'creation_time': 0,
           'attributes': (('color', 'red'), ('size', 3)),
-          'references': (0,),
-          'base_activation': -0.3465735902799726,
-          'activation_noise': 0.4750912862904178,
-          'activation': 0.12851769601044521,
-          'retrieval_probability': 0.48630445771876907},
-         {'name': '0001',
+          'reference_count': 1,
+          'references': [0],
+          'base_level_activation': -0.3465735902799726,
+          'activation_noise': -0.032318983984613185,
+          'activation': -0.3788925742645858,
+          'meets_threshold': True,
+          'retrieval_probability': 0.09473047409004302},
+         {'name': '0006',
           'creation_time': 1,
           'attributes': (('color', 'red'), ('size', 5)),
-          'references': (1,),
-          'base_activation': 0.0,
-          'activation_noise': 0.14789096368864968,
-          'activation': 0.14789096368864968,
-          'retrieval_probability': 0.5136955422812309}]
+          'reference_count': 1,
+          'references': [1],
+          'base_level_activation': 0.0,
+          'activation_noise': 0.4191470689622754,
+          'activation': 0.4191470689622754,
+          'meets_threshold': True,
+          'retrieval_probability': 0.905269525909957}]
         """
         return self._activation_history
 
@@ -659,7 +678,7 @@ class Memory(dict):
         False
         >>> m.advance()
         3
-        >>> m.retrieve({"color":"red"})
+        >>> m.retrieve({"color": "red"})
         <Chunk 0000 {'color': 'red', 'size': 4} 2>
         """
         slots = Memory._ensure_slots(slots)
