@@ -905,7 +905,7 @@ class Memory(dict):
             self._cite(result)
         return result
 
-    def blend(self, outcome_attribute, slots=[]):
+    def blend(self, outcome_attribute, slots={}):
         """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*, and have activations greater than or equal to this Memory's threshold.
         Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
@@ -1019,6 +1019,55 @@ class Memory(dict):
             return result, best_value
         else:
             return None, None
+
+    def discrete_blend(self, outcome_attribute, slots={}):
+        """Returns the value for the given attribute of those chunks matching *slots*, that maximizes the aggregate probabilities of retrieval of those chunks.
+        Returns ``None`` if there are no matching chunks that contain
+        *outcome_attribute*.
+
+        >>> m = Memory()
+        >>> m.learn({"kind": "tilset", "age": "old"})
+        True
+        >>> m.advance()
+        1
+        >>> m.learn({"kind": "limburger", "age": "old"})
+        True
+        >>> m.advance()
+        2
+        >>> m.learn({"kind": "tilset", "age": "old"})
+        False
+        >>> m.advance()
+        3
+        >>> m.learn({"kind": "tilset", "age": "new"})
+        True
+        >>> m.advance()
+        4
+        >>> m.discrete_blend("kind", {"age": "old"})
+        ('tilset', (('tilset', 0.9540373563209859), ('limburger', 0.04596264367901423)))
+        """
+        Memory._ensure_slot_name(outcome_attribute)
+        activations, chunks = self._activations(Memory._ensure_slots(slots),
+                                                extra=outcome_attribute)
+        if not chunks:
+            return None, None
+        with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
+            cprobs = np.exp(activations / self._temperature)
+            cprobs /= np.sum(cprobs)
+        candidates = defaultdict(list)
+        for c, p in zip(chunks, cprobs):
+            candidates[c[outcome_attribute]].append(p)
+        best = []
+        best_value = -math.inf
+        for k, v in candidates.items():
+            v = sum(v)
+            candidates[k] = v
+            if v > best_value:
+                best = [k]
+                best_value = v
+            elif v == best_value:
+                best.append(k)
+        return random.choice(best), tuple(candidates.items())
+
 
 def use_actr_similarity(value=None):
     """Whether to use "natural" similarity values, or traditional ACT-R ones.

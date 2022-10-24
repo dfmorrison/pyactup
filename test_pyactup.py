@@ -332,6 +332,8 @@ def test_learn_retrieve():
     with pytest.raises(RuntimeError):
         m.retrieve({"color":"red"})
     m.reset()
+    m.temperature = 1
+    m.noise = 0
     m.learn({"kind": "tilset", "ripeness": 9, "weight": 1.2})
     m.advance()
     m.learn({"kind": "limburger", "ripeness": 8, "weight": 0.9})
@@ -344,7 +346,10 @@ def test_learn_retrieve():
     m.advance()
     m.learn({"kind": "tilset", "weight": 1.1, "ripeness": 9 })
     m.advance()
-    print(m._activations({}))
+    assert len(m.chunks) == 4
+    assert m.retrieve()["kind"] == "tilset"
+    assert m.retrieve()["ripeness"] == 9
+    assert m.retrieve()["weight"] == 1.2
 
 # def test_similarity():
 #     def sim(x, y):
@@ -499,14 +504,28 @@ def test_best_blend():
     m.learn({"u":"not a number", "x":"a"})
     m.advance()
     assert m.time == 9
-#     with pytest.raises(Exception):
-#         m.best_blend("u", "ab", "x")
+    with pytest.raises(Exception):
+        m.best_blend("u", "ab", "x")
     assert m.time == 9
     a, v = m.best_blend("u", ({"x": x} for x in "bc"))
     assert a["x"] == "b"
     a, v = m.best_blend("u", ({"x": x} for x in "cde"))
     assert a is None
     assert v is None
+
+def test_discrete_blend():
+    m = Memory(temperature=1, noise=0)
+    for _ in range(100):
+        for i in range(100):
+            for j in range(100):
+                m.learn({"o":j, "s":i})
+                m.advance()
+    b, p = m.discrete_blend("o", {"s": 50})
+    assert b == 99
+    assert isclose(dict(p)[64], 0.010001719567347076)
+    b, p = m.discrete_blend("o")
+    assert b == 99
+    assert isclose(dict(p)[64], 0.009996654073373832)
 
 # def test_mixed_slots():
 #     m = Memory(temperature=1, noise=0)
