@@ -100,6 +100,14 @@ def test_parameter_manipulation():
     m.learn({"foo": "bar"})
     with pytest.raises(RuntimeError):
         m.optimized_learning = False
+    assert m.use_actr_similarity is False
+    m.use_actr_similarity = True
+    assert m.use_actr_similarity is True
+    m.use_actr_similarity = 0
+    assert m.use_actr_similarity is False
+    m.use_actr_similarity = "yup"
+    assert m.use_actr_similarity is True
+    assert Memory(use_actr_similarity=1).use_actr_similarity is True
 
 def test_time():
     m = Memory()
@@ -292,7 +300,6 @@ def test_threshold():
         m.advance(1000)
         assert m.retrieve() is None
 
-
 def test_mismatch():
     m = Memory()
     assert m.mismatch is None
@@ -307,9 +314,6 @@ def test_mismatch():
     with pytest.raises(ValueError):
         m.mismatch = -1
 
-# np.seterr(divide="ignore")
-
-# TODO test to confirm that things work as expected with orders of slots flopped and so on
 def test_learn_retrieve():
     m = Memory()
     m.learn({"a":1, "b":"x"})
@@ -365,63 +369,66 @@ def test_learn_retrieve():
     assert m.retrieve()["ripeness"] == 9
     assert m.retrieve()["weight"] == 1.2
 
-# def test_similarity():
-#     def sim(x, y):
-#         if y < x:
-#             return sim(y, x)
-#         return 1 - (y - x) / y
-#     set_similarity_function(sim, ["a"])
-#     set_similarity_function(True, ["b"])
-#     m = Memory(mismatch=1)
-#     assert len(Memory._similarity_cache) == 0
-#     assert isclose(m._similarity(3, 3, "a"), 1)
-#     assert isclose(m._similarity(4, 3, "b"), 0)
-#     assert m._similarity(4, 3, "c") is None
-#     assert len(Memory._similarity_cache) == 0
-#     assert isclose(m._similarity(3, 4, "a"), 0.75)
-#     assert len(Memory._similarity_cache) == 1
-#     set_similarity_function(lambda x, y: sim(x, y) / 3, ["a"])
-#     assert len(Memory._similarity_cache) == 0
-#     assert isclose(m._similarity(4, 3, "a"), 0.25)
-#     assert len(Memory._similarity_cache) == 1
-#     assert isclose(m._similarity(3, 4, "a"), 0.25)
-#     assert len(Memory._similarity_cache) == 1
-#     assert use_actr_similarity() == False
-#     use_actr_similarity(True)
-#     assert use_actr_similarity() == True
-#     set_similarity_function(lambda x, y: sim(x, y) - 1, ["a"])
-#     assert len(Memory._similarity_cache) == 0
-#     assert isclose(m._similarity(3, 3, "a"), 1)
-#     assert isclose(m._similarity(4, 3, "b"), 0)
-#     assert isclose(m._similarity(3, 4, "a"), 0.75)
-#     assert isclose(m._similarity(4, 3, "a"), 0.75)
+def test_similarity():
+    def sim(x, y):
+        if y < x:
+            return sim(y, x)
+        return 1 - (y - x) / y
+    m = Memory(mismatch=1)
+    m.similarity(["a"], sim)
+    m.similarity(["b"], True)
+    def test_one(x, y, a_len1, a_val, a_len2, b_len1, b_val, b_len2):
+        a = m._similarities.get("a")
+        b = m._similarities.get("b")
+        c = m._similarities.get("c")
+        assert c is None
+        assert len(a._cache) == a_len1
+        assert len(b._cache) == b_len1
+        assert isclose(a._similarity(x, y), a_val)
+        assert isclose(b._similarity(y, x), b_val)
+        assert isclose(a._similarity(y, x), a_val)
+        assert isclose(b._similarity(x, y), b_val)
+        assert isclose(a._similarity(x, y), a_val)
+        assert isclose(b._similarity(y, x), b_val)
+        assert len(a._cache) == a_len2
+        assert len(b._cache) == b_len2
+    test_one(3, 3, 0, 0, 0, 0, 0, 0)
+    test_one(3, 4, 0, -0.25, 2, 0, -1, 0)
+    test_one(4, 3, 2, -0.25, 2, 0, -1, 0)
+    m.similarity(["a"], weight=2)
+    m.similarity(["b"], weight=10)
+    test_one(4, 3, 0, -0.50, 2, 0, -10, 0)
+    m.similarity(["b"])
+    assert m._similarities.get("b") is None
+    m.use_actr_similarity = True
+    m.similarity(["b"], weight=20)
+    m.similarity(["a"], lambda x, y: sim(x, y) - 1, 4)
+    test_one(3, 4, 0, -1, 2, 0, -20, 0)
 
-# def test_retrieve_partial():
-#     use_actr_similarity(False)
-#     def sim(x, y):
-#         if y < x:
-#             return sim(y, x)
-#         return 1 - (y - x) / y
-#     def sim2(x, y):
-#         return sim(x, y) - 1
-#     set_similarity_function(sim, "a")
-#     m = Memory(mismatch=1, noise=0, temperature=1, learning_time_increment=0)
-#     m.learn({"a":1, "b":"x"})
-#     m.learn({"a":2, "b":"y"})
-#     m.learn({"a":3, "b":"z"})
-#     m.learn({"a":4, "b":"x"})
-#     m.advance()
-#     assert m.retrieve({"a":2.9}) is None
-#     assert m.retrieve({"a":3.5}, True)["b"] == "x"
-#     assert m.retrieve({"a":3.1}, True)["b"] == "z"
-#     assert m.retrieve({"a":2.4}, True)["b"] == "y"
-#     use_actr_similarity(True)
-#     set_similarity_function(sim2, "a")
-#     assert m.retrieve({"a":2.9}) is None
-#     assert m.retrieve({"a":3.5}, True)["b"] == "x"
-#     assert m.retrieve({"a":3.1}, True)["b"] == "z"
-#     assert m.retrieve({"a":2.4}, True)["b"] == "y"
-#     use_actr_similarity(False)
+def test_retrieve_partial():
+    def sim(x, y):
+        if y < x:
+            return sim(y, x)
+        return 1 - (y - x) / y
+    def sim2(x, y):
+        return sim(x, y) - 1
+    m = Memory(mismatch=1, noise=0, temperature=1)
+    m.similarity(["a"], sim)
+    m.learn({"a":1, "b":"x"})
+    m.learn({"a":2, "b":"y"})
+    m.learn({"a":3, "b":"z"})
+    m.learn({"a":4, "b":"x"})
+    m.advance()
+    assert m.retrieve({"a":2.9}) is None
+    assert m.retrieve({"a":3.5}, True)["b"] == "x"
+    assert m.retrieve({"a":3.1}, True)["b"] == "z"
+    assert m.retrieve({"a":2.4}, True)["b"] == "y"
+    m.use_actr_similarity = True
+    m.similarity(["a"], sim2)
+    assert m.retrieve({"a":2.9}) is None
+    assert m.retrieve({"a":3.5}, True)["b"] == "x"
+    assert m.retrieve({"a":3.1}, True)["b"] == "z"
+    assert m.retrieve({"a":2.4}, True)["b"] == "y"
 
 def test_blend():
     m = Memory(temperature=1, noise=0)

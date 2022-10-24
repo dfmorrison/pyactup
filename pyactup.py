@@ -49,18 +49,18 @@ import math
 import numpy as np
 import numpy.ma as ma
 import operator
-import pylru
 import random
 import sys
 
+from dataclasses import dataclass, field
 from collections import defaultdict
 from contextlib import contextmanager
 from itertools import count
-from numbers import Number
 from prettytable import PrettyTable
+from pylru import lrucache
 from warnings import warn
 
-__all__ = ("Memory", "set_similarity_function", "use_actr_similarity")
+__all__ = ["Memory"]
 
 DEFAULT_NOISE = 0.25
 DEFAULT_DECAY = 0.5
@@ -82,9 +82,9 @@ class Memory(dict):
 
     A ``Memory`` has several parameters controlling its behavior: :attr:`noise`,
     :attr:`decay`, :attr:`temperature`, :attr:`threshold`, :attr:`mismatch`, and
-    :attr:`optimized_learning`. All can be queried and set as properties on the
-    ``Memory`` object. When creating a ``Memory`` object their initial values can be
-    supplied as parameters.
+    :attr:`optimized_learning`, :attr:`use_actr_similarity`. All can be queried and set
+    as properties on the ``Memory`` object. When creating a ``Memory`` object their
+    initial values can be supplied as parameters.
 
     A ``Memory`` object can be serialized with
     `pickle <https://docs.python.org/3.6/library/pickle.html>`_, so long as any similarity
@@ -92,10 +92,13 @@ class Memory(dict):
     Memory objects to be saved to and restored from persistent storage. Note that attempts
     to pickle a Memory object containing a similarity function defined as a lambda
     function, or as an inner function, will cause a :exc:`PicklingError` to be raised.
+    And note further that pickle only includes the function name in the pickled object,
+    not its definition.
 
-    If, when creating a ``Memory`` object, any of *noise*, *decay* or *mismatch* are
-    negative, or if *temperature* is less than 0.01, a :exc:`ValueError` is raised.
-
+    If, when creating a ``Memory`` object, any of the various parameters have unsupported
+    values an :exc:`Exception` will be raised. See the documentation for the various
+    properties that can be used for setting these parameters for further details about
+    what values are or are not supported.
     """
 
     def __init__(self,
@@ -104,23 +107,30 @@ class Memory(dict):
                  temperature=None,
                  threshold=DEFAULT_THRESHOLD,
                  mismatch=None,
-                 optimized_learning=False):
+                 optimized_learning=False,
+                 use_actr_similarity=False):
         self._fixed_noise = None
         self._fixed_noise_time = None
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
         self._noise = None
         self._decay = None
         self._optimized_learning = None
+        self._use_actr_similarity = False
+        self._minimum_similarity = 0
+        self._maximum_similarity = 1
+        self._similarities = defaultdict(Similarity)
         self.noise = noise
         self.decay = decay
         if temperature is None and not self._validate_temperature(None, noise):
-            warn(f"A noise of {noise} and temperature of None will make the temperature too low; setting temperature to 1")
+            warn(f"A noise of {noise} and temperature of None will make the temperature "
+                 f"too low; setting temperature to 1")
             self.temperature = 1
         else:
             self.temperature = temperature
         self.threshold = threshold
         self.mismatch = mismatch
         self.optimized_learning = optimized_learning
+        self.use_actr_similarity = use_actr_similarity
         self._activation_history = None
         self._slot_name_index = defaultdict(list)
         # Initialize the noise RNG from the parent Python RNG, in case the latter gets seeded for determinancy.
@@ -493,6 +503,32 @@ class Memory(dict):
         self._optimized_learning = v
 
     @property
+    def use_actr_similarity(self):
+        """ Whether similarity computations for this :class:`Memory` use "natural" similarity values or traditional ACT-R ones.
+        PyACTUp normally uses a "natural" representation of similarities, where two values
+        being completely similar, identical, has a value of one; and being completely
+        dissimilar has a value of zero; with various other degrees of similarity being
+        positive, real numbers less than one. Traditionally ACT-R instead uses a range of
+        similarities with the most dissimilar being a negative number, usually -1, and
+        completely similar being zero. If the value of this :attr:`use_actr_similarity` is
+        falsey, the default, natural similarities are used, and otherwise the tradional
+        ACT-R ones.
+        """
+        return self._use_actr_similarity
+
+    @use_actr_similarity.setter
+    def use_actr_similarity(self, value):
+        for s in self._similarities.values():
+            s._cache.clear()
+        if value:
+            self._minimum_similarity = -1
+            self._maximum_similarity =  0
+        else:
+            self._minimum_similarity =  0
+            self._maximum_similarity =  1
+        self._use_actr_similarity = bool(value)
+
+    @property
     def activation_history(self):
         """A :class:`MutableSequence`, typically a :class:`list`,  into which details of the computations underlying PyACTUp operation are appended.
         If ``None``, the default, no such details are collected.
@@ -607,43 +643,6 @@ class Memory(dict):
             return lst.__repr__()[1:-1]
         else:
             return lst[:3].__repr__()[1:-1] + ", ... " + lst[-3:].__repr__()[1:-1]
-
-    # TODO which of these are still needed?
-    _use_actr_similarity = False
-    _minimum_similarity = 0
-    _maximum_similarity = 1
-    _similarity_functions = {}
-    _similarity_cache = pylru.lrucache(SIMILARITY_CACHE_SIZE)
-
-    # TODO possibly update docstrings for retrieve() and blend() to reflect new similarity stuff,
-    # or maybe put it all in set_similarity_function() and/or mismatch?
-    def _similarity(self, x, y, attribute):
-        # always returns the "natural" similarity
-        # returns None if similarity is inapplicatble to attribute
-        if x == y:
-            return 1
-        fn = self._similarity_functions.get(attribute)
-        if fn is True:
-            return 0
-        elif fn:
-            signature = (x, y, attribute)
-            result = self._similarity_cache.get(signature)
-            if result is not None:
-                return result
-            result = self._similarity_cache.get((y, x, attribute))
-            if result is not None:
-                return result
-            result = fn(x, y)
-            if result < Memory._minimum_similarity:
-                warn(f"similarity value is less than the minimum allowed, {Memory._minimum_similarity}, so that minimum value is being used instead")
-                result = Memory._minimum_similarity
-            elif result > Memory._maximum_similarity:
-                warn(f"similarity value is greater than the maximum allowed, {Memory._maximum_similarity}, so that maximum value is being used instead")
-                result = Memory._maximum_similarity
-            if Memory._use_actr_similarity:
-                result += 1
-            self._similarity_cache[signature] = result
-            return result
 
     def learn(self, slots, advance=None):
         """Adds, or reinforces, a chunk in this Memory with the attributes specified by *slots*.
@@ -774,8 +773,8 @@ class Memory(dict):
         if partial and self._mismatch:
             exact_slots =[]
             for n, v in conditions.items():
-                if f := Memory._similarity_functions.get(n):
-                    partial_slots.append((n, v, f))
+                if s := self._similarities.get(n):
+                    partial_slots.append((n, v, s))
                 else:
                     exact_slots.append((n, v))
         else:
@@ -862,15 +861,14 @@ class Memory(dict):
                         for i, s in zip(count(initial_history_length), noise):
                             self._activation_history[i]["activation_noise"] = s
                 if partial_slots:
-                    # TODO work out if this is better than doing it all row by row; for vectorize f?
-                    # TODO figure out weights and similarity caching
-                    # TODO call the similarity functions earlier?
-                    sims = np.empty((ncunhks, len(partial_slots)))
+                    penalties = np.empty((nchunks, len(partial_slots)))
                     for c, row in zip(chunks, count()):
-                        sims[i] = [f(c[n], v) for n, v, f in partial_slots]
-                    sims = np.sum(sims, 1) * self._mismatch
-                    # TODO add it in
-                    # TODO include it in the activation history
+                        penalties[row] = [s._similarity(c[n], v) for n, v, s in partial_slots]
+                    penalties = np.sum(penalties, 1) * self._mismatch
+                    result += penalties
+                    if self._activation_history is not None:
+                        for i, p in zip(count(initial_history_length), penalties):
+                            self._activation_history[i]["mismatch"] = p
                 if self._activation_history is not None:
                     for i, r in zip(count(initial_history_length), result):
                         self._activation_history[i]["activation"] = r
@@ -1100,61 +1098,59 @@ class Memory(dict):
                 best.append(k)
         return random.choice(best), tuple(candidates.items())
 
+    def similarity(self, attributes, function=None, weight=None):
+        """Assigns a similarity function and/or corresponding weight to be used when comparing attribute values with the given *attributes*.
+        The *attributes* should be an :class:`Iterable` of strings, attribute names.
+        The *function* should take two arguments, and return a real number between 0 and 1,
+        inclusive.
+        The function should be commutative; that is, if called with the same arguments
+        in the reverse order, it should return the same value.
+        It should also be stateless, always returning the same values if passed
+        the same arguments.
+        No error is raised if either of these constraints is violated, but the results
+        will, in most cases, be meaningless if they are.
+        If ``True`` is supplied as the *function* a default similarity function is used
+        that returns one if its two arguments are ``==`` and zero otherwise.
+        If only one of *function* or *weight* is supplied, it is changed without
+        changing the other; the initial defaults are ``Treu`` for *function* and ``1``
+        for *weight*.
+        If neither *function* nor *weight* is supplied both are removed, and these
+        *attributes* will no longer have an associated similarity computation, and will
+        be matched only exactly.
 
-def use_actr_similarity(value=None):
-    """Whether to use "natural" similarity values, or traditional ACT-R ones.
-    PyACTUp normally uses a "natural" representation of similarities, where two values
-    being completely similar, identical, has a value of one; and being completely
-    dissimilar has a value of zero; with various other degrees of similarity being
-    positive, real numbers less than one. Traditionally ACT-R instead uses a range of
-    similarities with the most dissimilar being a negative number, usually -1, and
-    completely similar being zero.
+        An :exc:`Exception` is raised if any of the elements of *attributes* are not
+        non-zero length strings, if *function* is neither :class:`callable` nor ``True``,
+        of if *weight* is not a positive, real number.
 
-    If the argument is ``False`` or ``True`` it sets the ACT-R traditional behavior
-    on or off, and returns it. With no arguments it returns the current value.
-    """
-    if value is not None:
-        Memory._similarity_cache.clear()
-        if value:
-            Memory._minimum_similarity = -1
-            Memory._maximum_similarity =  0
-        else:
-            Memory._minimum_similarity =  0
-            Memory._maximum_similarity =  1
-        Memory._use_actr_similarity = bool(value)
-    return Memory._use_actr_similarity
+        Note that for a :class:`Memory` to be successfully pickled all the similarity
+        functions should be defined at top level, and be neither lambda expressions nor
+        inner functions. Pickled objects include only the names of functions, and not
+        their function definitions.
 
-def set_similarity_function(function, attributes, weight=1):
-    """Assigns a similarity function to be used when comparing attribute values with the given *attributes*.
-    The *attributes* should be an :class:`Iterable` of strings, attribute names.
-    The *function* should take two arguments, and return a real number between 0 and 1,
-    inclusive.
-    The function should be commutative; that is, if called with the same arguments
-    in the reverse order, it should return the same value.
-    It should also be stateless, always returning the same values if passed
-    the same arguments.
-    No error is raised if either of these constraints is violated, but the results
-    will, in most cases, be meaningless if they are.
+        >>> def f(x, y):
+        ...     if y < x:
+        ...         return f(y, x)
+        ...     return 1 - (y - x) / y
+        >>> similarity(["length", "width"], f, weight=2)
 
-    TODO implement and document weights
-
-    If ``True`` is supplied as the *function* a default similarity function is used that
-    returns one if its two arguments are ``==`` and zero otherwise.
-
-    >>> def f(x, y):
-    ...     if y < x:
-    ...         return f(y, x)
-    ...     return 1 - (y - x) / y
-    >>> set_similarity_function(f, ["length", "width"])
-    """
-    for s in attributes:
-        if callable(function):
-            Memory._similarity_functions[s] = function
-        elif function:
-            Memory._similarity_functions[s] = True
-        elif s in Memory._similarity_functions:
-            del Memory._similarity_functions[s]
-    Memory._similarity_cache.clear()
+        """
+        if function is not None and not (callable(function) or function is True):
+            raise ValueError(f"Function {function} is neither callable nor True")
+        if weight is not None and weight <= 0:
+            raise ValueError(f"Similarity weight, {weight}, is not a positive number")
+        for a in attributes:
+            Memory._ensure_slot_name(a)
+            if function is None and weight is None:
+                if a in self._similarities:
+                    del self._similarities[a]
+            else:
+                sim = self._similarities[a]
+                sim._memory = self
+                if function is not None and function != sim._function:
+                    sim._function = function
+                if weight is not None and weight != sim._weight:
+                    sim._weight = weight
+                sim._cache.clear()
 
 
 class Chunk(dict):
@@ -1196,6 +1192,38 @@ class Chunk(dict):
                                        if self._memory._optimized_learning is None
                                        else min(self._reference_count,
                                                 self._memory._optimized_learning))])
+
+
+@dataclass
+class Similarity:
+    _memory: Memory = None
+    _function: callable = True
+    _weight: float = 1.0
+    _cache: lrucache = field(default_factory=lambda: lrucache(SIMILARITY_CACHE_SIZE))
+
+    def _similarity(self, x, y):
+        # returns a non-positive number that has already been weighted on a per slot basis
+        if x == y:
+            return 0
+        if self._function is True:
+            return -self._weight
+        signature = (x, y)
+        result = self._cache.get(signature)
+        if result is not None:
+            return result
+        result = self._function(x, y)
+        if result < self._memory._minimum_similarity:
+            raise ValueError(f"similarity value, {result}, is less than the minimum "
+                             f"allowed, {self._memory._minimum_similarity}")
+        elif result > self._memory._maximum_similarity:
+            raise ValueError(f"similarity value, {result}, is greater than the maximum "
+                             f"allowed, {self._memory._maximum_similarity}")
+        if not self._memory._use_actr_similarity:
+            result -= 1
+        result *= self._weight
+        self._cache[signature] = result
+        self._cache[(y, x)] = result
+        return result
 
 
 # Local variables:
