@@ -17,7 +17,7 @@ def test_parameter_manipulation():
     assert m.decay == 0.5
     assert m.temperature is None
     assert isclose(m._temperature, 0.3535534, rel_tol=0.0001)
-    assert m.threshold == -10.0
+    assert m.threshold is None
     assert m.mismatch is None
     assert m.optimized_learning == False
     m.temperature = False
@@ -284,9 +284,9 @@ def test_decay():
 
 def test_threshold():
     m = Memory()
-    assert isclose(m.threshold, -10)
-    m.threshold = None
     assert m.threshold is None
+    m.threshold = -10
+    assert m.threshold -10
     m.threshold = -sys.float_info.max
     assert m.threshold == -sys.float_info.max
     with pytest.raises(ValueError):

@@ -64,7 +64,6 @@ __all__ = ["Memory"]
 
 DEFAULT_NOISE = 0.25
 DEFAULT_DECAY = 0.5
-DEFAULT_THRESHOLD = -10.0
 
 MINIMUM_TEMPERATURE = 0.01
 
@@ -105,7 +104,7 @@ class Memory(dict):
                  noise=DEFAULT_NOISE,
                  decay=DEFAULT_DECAY,
                  temperature=None,
-                 threshold=DEFAULT_THRESHOLD,
+                 threshold=None,
                  mismatch=None,
                  optimized_learning=False,
                  use_actr_similarity=False):
@@ -398,7 +397,7 @@ class Memory(dict):
     def threshold(self):
         """The minimum activation value required for a retrieval.
         If ``None`` there is no minimum activation required.
-        The default value is ``-10``.
+        The default value is ``None``.
         Attempting to set the ``threshold`` to a value that is neither ``None`` nor a
         real number raises a :exc:`ValueError`.
 
@@ -564,7 +563,6 @@ class Memory(dict):
           'base_level_activation': -0.3465735902799726,
           'activation_noise': -0.032318983984613185,
           'activation': -0.3788925742645858,
-          'meets_threshold': True,
           'retrieval_probability': 0.09473047409004302},
          {'name': '0006',
           'creation_time': 1,
@@ -574,7 +572,6 @@ class Memory(dict):
           'base_level_activation': 0.0,
           'activation_noise': 0.4191470689622754,
           'activation': 0.4191470689622754,
-          'meets_threshold': True,
           'retrieval_probability': 0.905269525909957}]
         """
         return self._activation_history
@@ -888,7 +885,7 @@ class Memory(dict):
             return result, chunks
 
     def retrieve(self, slots={}, partial=False, rehearse=False):
-        """Returns the chunk matching the *slots* that has the highest activation greater than or equal to this Memory's :attr:`threshold`.
+        """Returns the chunk matching the *slots* that has the highest activation greater than or equal to this Memory's :attr:`threshold`, if any.
         If there is no such matching chunk returns ``None``.
         Normally only retrieves chunks exactly matching the *slots*; if *partial* is
         ``True`` it also retrieves those only approximately matching, using similarity
@@ -949,7 +946,7 @@ class Memory(dict):
         return wp, chunks
 
     def blend(self, outcome_attribute, slots={}):
-        """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*, and have activations greater than or equal to this Memory's threshold.
+        """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*, and have activations greater than or equal to this Memory's threshold, if any.
         Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
         that is not a real number an :exc:`Exception` is raised.
