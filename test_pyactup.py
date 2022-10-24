@@ -239,8 +239,7 @@ def test_decay():
     m.temperature = 1
     m.noise = 0
     m.decay = 0
-    m.learn({"foo":1})
-    m.advance(3)
+    m.learn({"foo":1}, advance=3)
     assert m.time == 3
     m.learn({"foo":1})
     m.advance(7)
@@ -314,10 +313,11 @@ def test_learn_retrieve():
     with pytest.raises(TypeError):
         m.learn({"a":[1, 2]})
     m.reset()
-    m.learn({"color":"red", "size":1})
-    m.advance()
+    m.learn({"color":"red", "size":1}, advance=True)
+    assert m.time == 1
     m.learn({"size":1, "color":"blue"})
     m.advance()
+    assert m.time == 2
     m.learn({"color":"red", "size":2})
     m.advance(100)
     m.learn({"color":"red", "size":1})

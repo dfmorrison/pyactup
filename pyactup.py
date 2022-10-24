@@ -231,7 +231,7 @@ class Memory(dict):
         return self._time
 
     def advance(self, amount=1):
-        """Adds the given *amount* to this Memory's time, and returns the new, current time.
+        """Adds the given *amount*, which defaults to 1, to this Memory's time, and returns the new, current time.
         Raises a :exc:`ValueError` if *amount* is negative, or not a real number.
         """
         if amount < 0:
@@ -621,7 +621,7 @@ class Memory(dict):
             self._similarity_cache[signature] = result
             return result
 
-    def learn(self, slots):
+    def learn(self, slots, advance=None):
         """Adds, or reinforces, a chunk in this Memory with the attributes specified by *slots*.
         The attributes, or slots, of a chunk are described using the :class:`abc.Mapping`
         *slots*, the keys of which must be non-empty strings and are the attribute names.
@@ -638,15 +638,18 @@ class Memory(dict):
         is not :class:`Hashable`. Raises a :exc:`ValueError` if no *slots* are provided,
         or if any of the keys of *slots* are not non-empty strings.
 
+        Because it is so common to call :meth:`advance` immediately after :meth"`learn`
+        as a convenience if *advance* is not None just before :meth:`learn` returns
+        :meth:`advance` with *advance* as its argument, without an argument if *advance*
+        is ``True``.
+
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":4})
         True
         >>> m.advance()
         1
-        >>> m.learn({"color":"blue", "size":4})
+        >>> m.learn({"color":"blue", "size":4}, advance=1)
         True
-        >>> m.advance()
-        2
         >>> m.learn({"color":"red", "size":4})
         False
         >>> m.advance()
@@ -663,6 +666,10 @@ class Memory(dict):
             self._slot_name_index[frozenset(slots.keys())].append(chunk)
             created = True
         self._cite(chunk)
+        if advance is True:
+            self.advance()
+        elif advance is not None:
+            self.advance(advance)
         return created
 
     @staticmethod
