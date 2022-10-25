@@ -43,11 +43,11 @@ def main(rounds=DEFAULT_ROUNDS):
         m.learn({"player": "player1",
                  "ultimate": safe_element(plays1, -1),
                  "penultimate": safe_element(plays1, -2),
-                 "move": move1},
-                advance=0)
+                 "move": move1})
         m.learn({"player": "player2",
                  "ultimate": safe_element(plays2, -1),
-                 "move": move2})
+                 "move": move2},
+                advance=2)
         plays1.append(move1)
         plays2.append(move2)
 

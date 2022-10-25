@@ -16,7 +16,7 @@ Introduction
 ============
 
 PyACTUp is a lightweight Python implementation of a subset of the ACT-R  [#f1]_ cognitive architecture’s Declarative Memory,
-suitable for incorporating into other Python models and applications. It is inspired by the ACT-UP [#f2]_ cognitive
+suitable for incorporating into other Python models and applications. Its creation was inspired by the ACT-UP [#f2]_ cognitive
 modeling toolbox.
 
 Typically PyACTUp is used by creating an experimental framework, or connecting to an existing experiment,
@@ -65,7 +65,7 @@ If it is not already installed, Python, for Windows, Mac OS X, Linux, or other U
 
 PyACTUp also works in recent versions of `PyPy <https://pypy.org/>`_, an alternative implementation to the usual CPython.
 PyPy uses a just-in-time (JIT) compiler, which is a good match for PyACTUp, and PyACTUp models often
-run five times faster in PyPy compared to CPython.
+run noticeably faster in PyPy compared to CPython.
 
 Note that PyACTUp is simply a Python module, a library, that is run as part of a larger
 Python program. To build and run models using PyACTUp you do need to do
@@ -137,14 +137,14 @@ components,
 
   .. math:: A_{i} = B_{i} + \epsilon_{i} + P_{i}
 
-the base level activation, the activation noise, and the partial matching correction.
+the base-level activation, the activation noise, and the partial matching correction.
 
-Base level activation
+Base-level activation
 ~~~~~~~~~~~~~~~~~~~~~
 
-The base level activation, :math:`B_{i}`, describes the frequency and recency of the chunk *i*,
+The base-level activation, :math:`B_{i}`, describes the frequency and recency of the chunk *i*,
 and depends upon the ``decay`` parameter of Memory, *d*. In the normal case, when the
-Memory's ``optimized_learning`` parameter is ``False``, the base level activation is computed using
+Memory's ``optimized_learning`` parameter is ``False``, the base-level activation is computed using
 the amount of time that has elapsed since each of the past appearances of *i*, which in the following
 are denoted as the various :math:`t_{ij}`.
 
@@ -159,8 +159,12 @@ the first appearance of *i*, and *n*, a count of the number of times *i* has app
 
   .. math:: B_{i} = \ln(\frac{n}{1 - d}) - d \ln(L)
 
-Note that setting the ``decay`` parameter to ``None`` disables the computation of base level
-activation. That is, the base level component of the total activation is zero in this case.
+The ``optimized_learning`` parameter may also be set to a positive integer. This specifies a number of most recent
+reinforcements of a chunk to be used to compute the base-level activation in the normal way, with the contributions
+of any older than those approximated using a formula similar to the preceding.
+
+Note that setting the ``decay`` parameter to ``None`` disables the computation of base-level
+activation. That is, the base-level component of the total activation is zero in this case.
 
 Activation noise
 ~~~~~~~~~~~~~~~~
@@ -171,7 +175,8 @@ parameter, ``noise``, for this distribution. It is normally resampled each time 
 
 For some esoteric purposes when a chunk’s activation is computed repeatedly at the same time it
 may be desired to have all these same-time activations of a chunk use the same sample of activation noise.
-While this is rarely needed, when it is the ``fixed_noise`` context manager can be used.
+While this is rarely needed, and best avoided unless absolutely necessary, when it is needed the ``fixed_noise``
+context manager can be used.
 
 Note that setting the ``noise`` parameter to zero results in supplying
 no noise to the activation. This does not quite make operation of
@@ -194,20 +199,21 @@ PyACTUp normally uses a "natural" representation of similarities, where two valu
 has a value of one; and being completely dissimilar has a value of zero; with various other degrees of similarity being
 positive, real numbers less than one. Traditionally ACT-R instead uses a range of
 similarities with the most dissimilar being a negative number, usually -1, and completely similar being zero.
-If preferred, PyACTUp can be configured to use these ACT-R-style similarities by calling the
-function ``use_actr_similarity`` with an argument of ``True``, resulting in the computations below being appropriately offset.
+If preferred, PyACTUp can be configured to use these ACT-R-style similarities by setting
+the ``use_actr_similarity`` attribute of a ``Memory`` object to ``True``, resulting in the computations
+below being appropriately offset.
 
-The ``set_similarity_function`` defines how to compute the similarity of values for a particular attribute.
+The ``similarity`` method defines how to compute the similarity of values for a particular attribute when
+it appears in a ``Memory``’s chunks. A function is supplied to this method to be applied to values of the
+attributes of given names, this function returning a similarity value. In addition, the ``similarity`` method
+can assign a weight, :math:`\omega`, to these slots, allowing the mismatch contributions of multiple slots
+to be scaled with respect to one another. If not explicitly supplied this weight defaults to one.
 
-..
-   function ``set_similarity_function`` or the Memory method ``set_similarity``. If neither has been
-   used in a way applicable to the two chunks being compared their similarity is one if they are the same
-   chunk, and otherwise zero.
+If the ``mismatch`` parameter has real value :math:`\mu`, the similarity of slot *k* of *i* to the desired
+value of that slot in the retrieval is :math:`S_{ik}`, and the similarity weight of slot *i* is :math:`\omega_{i}`,
+the partial matching correction is
 
-If the ``mismatch`` parameter has real value :math:`\mu` and the similarity of slot *k* of *i* to the desired
-value of that slot in the retrieval is :math:`S_{ik}`, the partial matching correction is
-
-  .. math:: P_{i} = \mu \sum_{k} (S_{ik} - 1)
+  .. math:: P_{i} = \mu \sum_{k} \omega_{i} (S_{ik} - 1)
 
 The value of :math:`\mu` is normally positive, so :math:`P_{i}` is normally negative, and increasing dissimilarities
 reduce the total activation, scaled by the value of :math:`\mu`.
@@ -235,6 +241,10 @@ the  blended value, *BV*, is then
 
   .. math:: BV =\, \sum_{i \in m}{\, \frac{w_{i}}{\sum_{j \in m}{w_{j}}} \; s_{i}}
 
+It is also possible to perform a discrete blending operation where an exisiting slot value is
+returned, albeit one possibly not appearing an any chunk that directly matches the criteria,
+it instead resulting from a blending operation using the same weights as above.
+
 
 
 API Reference
@@ -252,6 +262,8 @@ API Reference
 
    .. automethod:: best_blend
 
+   .. automethod:: discrete_blend
+
    .. automethod:: reset
 
    .. autoattribute:: time
@@ -268,27 +280,24 @@ API Reference
 
    .. autoattribute:: threshold
 
-   .. autoattribute:: learning_time_increment
-
-   .. autoattribute:: retrieval_time_increment
-
-   .. autoattribute:: activation_history
-
-   .. autoattribute:: optimized_learning
+   .. automethod:: similarity
 
    .. autoattribute:: chunks
 
    .. automethod:: print_chunks
 
+   .. autoattribute:: activation_history
+
+   .. autoattribute:: optimized_learning
+
+   .. automethod:: forget
+
    .. autoattribute:: current_time
 
    .. autoattribute:: fixed_noise
 
-   .. automethod:: forget
+   .. autoattribute:: use_actr_similarity
 
-.. autofunction:: set_similarity_function
-
-.. autofunction:: use_actr_similarity
 
 
 Examples
@@ -351,11 +360,11 @@ prior history they consider in creating their expectations.
             m.learn({"player": "player1",
                      "ultimate": safe_element(plays1, -1),
                      "penultimate": safe_element(plays1, -2),
-                     "move": move1},
-                    advance=0)
+                     "move": move1})
             m.learn({"player": "player2",
                      "ultimate": safe_element(plays2, -1),
-                     "move": move2})
+                     "move": move2},
+                    advance=2)
             plays1.append(move1)
             plays2.append(move2)
 
@@ -480,14 +489,14 @@ a binary choice task, exhibiting risk aversion. A choice is made between two opt
 and the other risky. The safe choice always pays out one unit. The risky choice is random, paying
 out three units one third of the time and zero units the rest. In this example code the choice
 is made by each virtual participant over the course of 60 rounds, learning from the experience
-of previous rounds. And the results are collected over 10,000 independent participants, and
+of previous rounds. The results are collected over 10,000 independent participants, and
 the number of risky choices at each round, averaged over all participants, is plotted.
 
 This code uses two other Python packages, `matplotlib <https://matplotlib.org/>`_
 and `tqdm <https://tqdm.github.io/>`_.
 Neither is actually used by the model proper, and the code can be rearranged to dispense with
 them, if preferred. ``Matplotlib`` is used to draw a graph of the results, and ``tqdm``
-to display a progress indicator, as this example takes on the order of a minuyte to run
+to display a progress indicator, as this example takes on the order of a minute to run
 in CPython.
 
 .. code-block:: python
@@ -509,7 +518,7 @@ in CPython.
         m.reset()
         # prepopulate some instances to ensure initial exploration
         for c, o in (("safe", 1), ("risky", 0), ("risky", 2)):
-            m.learn({"choice": c, "outcome": o}, advance=0)
+            m.learn({"choice": c, "outcome": o})
         m.advance()
         for r in range(ROUNDS):
             choice, bv = m.best_blend("outcome", ("safe", "risky"), "choice")
@@ -519,6 +528,7 @@ in CPython.
             else:
                 payoff = 1
             m.learn({"choice": choice, "outcome": payoff})
+            m.advance()
 
     plt.plot(range(ROUNDS), [ v / PARTICIPANTS for v in risky_chosen])
     plt.ylim([0, 1])
@@ -545,7 +555,21 @@ Changes to PyACTUp
 Changes between versions 1.1.4 and 2.0
 --------------------------------------
 
-* Changed the arguments to learn(), forget(), retrieve(), blend() and set_similarity_function().
+* Changed the arguments to learn(), forget(), retrieve() and blend().
+* There is now a new discrete_blend() method.
+* Similarity functions are now per-memory, and are set using the similarity() method,
+  there no longer being a set_similarity_function() function.
+* Similarities can now have weights, also set with the similarity() method.
+* The optimized_learning parameter can now be set like other parameters, and there
+  is no longer an optimized_learning parameter to the reset() method.
+* The optimized_learning parameter can now take positive integers as its value,
+  allowing a mixture of normal and approximate activation computations.
+* There is no longer any auto-advancing before learn() and/or after retrieve() or blend();
+  while auto-advancing slightly simplified trivial demonstration models, it invariably
+  caused difficulties with real models, and sowed confusion. As an intermediate measure
+  there is still an advance= keyword argument available in learn().
+* Some operations have been significantly speeded up for models with many chunks
+  and/or rehearsals of those chunks.
 * General tidying and minor bug fixes.
 
 When upgrading existinig 1.x models to version 2.0 or later some syntactic changes will nearly always have to be made,
@@ -557,9 +581,12 @@ Note that it is now no longer necessary to avoid using Python keywords or possib
 methods as attribute names. And this change also allows sensible extension of the PyACTUp API by adding further keyword
 arguments to the relevant methods.
 
-If you are using partial matching you will also have to update calls to :func:`set_similarity_function`, the attributes
-names now being passed as a list or other iterable. Typically this simply just requires adding square brackets around
-the attribute names.
+If you are using partial matching you will also have to replace calls to :func:`set_similarity_function` by
+the :meth:`similarity` method of Memory objects. This method also takes slightly different arguments than
+the former function.
+
+Also since auto-advance is no longer done, explict calls to advance() (or additions of advance= to learn())
+may need to be added at appropriate points in older code.
 
 For example, what in 1.x would have been expressed as
 
@@ -570,12 +597,13 @@ For example, what in 1.x would have been expressed as
     x = m.retrieve(color="blue")
     bv = m.blend("size“, color="green")
 
-becomes in 2.x
+might become in 2.0
 
 .. code-block:: python
 
-    set_similarity_function(cubic_similarity, ["weight", "volume"])
+    m.similarity(["weight", "volume"], cubic_similarity)
     m.learn({"color": "red", "size": 4})
+    m.advance()
     x = m.retrieve({"color": "blue"})
     bv = m.blend("size", {"color": "green"})
 
@@ -597,7 +625,7 @@ Changes between versions 1.0.9 and 1.1.3
 Changes between versions 1.0 and 1.0.9
 --------------------------------------
 
-* Allow disabling base level activation.
+* Allow disabling base-level activation.
 * Cache similarity computations.
 * Add rehearse parameter to retrieve() method.
 * Add best_blend() method.

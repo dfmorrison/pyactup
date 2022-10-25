@@ -19,7 +19,7 @@
 
 """PyACTUp is a lightweight Python implementation of a subset of the ACT-R cognitive
 architecture’s Declarative Memory, suitable for incorporating into other Python models and
-applications. It is inspired by the ACT-UP cognitive modeling toolbox.
+applications. Its creation was inspired by the ACT-UP cognitive modeling toolbox.
 
 Typically PyACTUp is used by creating an experimental framework, or connecting to an
 existing experiment, in the Python programming language, using one or more PyACTUp
@@ -56,6 +56,7 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from contextlib import contextmanager
 from itertools import count
+from numbers import Real
 from prettytable import PrettyTable
 from pylru import lrucache
 from warnings import warn
@@ -81,23 +82,26 @@ class Memory(dict):
 
     A ``Memory`` has several parameters controlling its behavior: :attr:`noise`,
     :attr:`decay`, :attr:`temperature`, :attr:`threshold`, :attr:`mismatch`, and
-    :attr:`optimized_learning`, :attr:`use_actr_similarity`. All can be queried and set
-    as properties on the ``Memory`` object. When creating a ``Memory`` object their
+    :attr:`optimized_learning`, and :attr:`use_actr_similarity`. All can be queried and
+    set as properties on the ``Memory`` object. When creating a ``Memory`` object their
     initial values can be supplied as parameters.
 
-    A ``Memory`` object can be serialized with
-    `pickle <https://docs.python.org/3.6/library/pickle.html>`_, so long as any similarity
-    functions it contains are defined at the top level of a module using ``def``, allowing
-    Memory objects to be saved to and restored from persistent storage. Note that attempts
-    to pickle a Memory object containing a similarity function defined as a lambda
-    function, or as an inner function, will cause a :exc:`PicklingError` to be raised.
-    And note further that pickle only includes the function name in the pickled object,
-    not its definition.
+    A ``Memory`` object can be serialized with `pickle
+    <https://docs.python.org/3.6/library/pickle.html>`_ allowing Memory objects to be
+    saved to and restored from persistent storage, so long as any similarity functions it
+    contains are defined at the top level of a module using ``def``. Note that attempts to
+    pickle a Memory object containing a similarity function defined as a lambda function,
+    or as an inner function, will cause a :exc:`Exception` to be raised. And note further
+    that pickle only includes the function name in the pickled object, not its definition.
+    Also, if the contents of a ``Memory`` object are sufficiently complicated it may be
+    necessary to raise Python's recursion limit with
+    `sys.setrecusionlimit <https://docs.python.org/3.7/library/sys.html#sys.setrecursionlimit>`_.
 
     If, when creating a ``Memory`` object, any of the various parameters have unsupported
     values an :exc:`Exception` will be raised. See the documentation for the various
     properties that can be used for setting these parameters for further details about
     what values are or are not supported.
+
     """
 
     def __init__(self,
@@ -143,7 +147,7 @@ class Memory(dict):
         """Deletes the Memory's chunks and resets its time to zero.
         If *preserve_prepopulated* is false it deletes all chunks; if it is true it
         deletes all chunk references later than time zero, completely deleting those
-        chunks that were created at time greater than zero.
+        chunks that were created at a time other than zero.
         """
         if preserve_prepopulated:
             preserved = {k: v for k, v in self.items() if v._creation == 0}
@@ -241,6 +245,14 @@ class Memory(dict):
         """
         return self._time
 
+    @time.setter
+    def time(self, value):
+        if not isinstance(value, Real):
+            raise ValueError(f"Time {value} is not a real number")
+        self._time = value
+        if value != self._time:
+            self._clear_fixed_noise()
+
     def advance(self, amount=1):
         """Adds the given *amount*, which defaults to 1, to this Memory's time, and returns the new, current time.
         Raises an :exc:`Exception` if *amount* is neither a real number nor ``None``.
@@ -250,11 +262,10 @@ class Memory(dict):
             easily result in biologically implausible models, and attempts to perform
             retrievals or similar operations at times preceding those at which relevant
             chunks were created will result in infinite or complex valued base-level
-            activations and raise :exc:`Exception`s.
+            activations and raise an :exc:`Exception`.
         """
         if amount is not None:
-            self._time += amount
-            self._clear_fixed_noise()
+            self.time += amount
         return self._time
 
     @property
@@ -338,8 +349,8 @@ class Memory(dict):
         Time in PyACTUp is dimensionless.
         The :attr:`decay` is typically between about 0.1 and 2.0.
         The default value is 0.5. If zero memory does not decay.
-        If set to ``None`` no base level activation is computed or used; note that this is
-        significantly different than setting it to zero which causes base level activation
+        If set to ``None`` no base-level activation is computed or used; note that this is
+        significantly different than setting it to zero which causes base-level activation
         to still be computed and used, but with no decay.
         Attempting to set it to a negative number raises a :exc:`ValueError`.
         It must be less one 1 if this memory's :attr:`optimized_learning` parameter is set.
@@ -420,7 +431,7 @@ class Memory(dict):
     def mismatch(self):
         """The mismatch penalty applied to partially matching values when computing activations.
         If ``None`` no partial matching is done.
-        Otherwise any defined similarity functions (see :func:`set_similarity_function`)
+        Otherwise any defined similarity functions (see :meth:`similarity`)
         are called as necessary, and
         the resulting values are multiplied by the mismatch penalty and subtracted
         from the activation.
@@ -462,13 +473,13 @@ class Memory(dict):
         Attempting to set this parameter to ``True`` or an integer when :attr:`decay` is
         one or greater raises a :exc:`ValueError`.
 
-        The value of this attributed can only be changed when the :class:`Memory` object
+        The value of this attribute can only be changed when the :class:`Memory` object
         does not contain any chunks, typically immediately after it is created or
         :meth:`reset`. Otherwise a :exc:`RuntimeError` is raised.
 
         .. warning::
             Care should be taken when using optimized learning as operations such as
-            ``retrieve`` that depend upon activation will not longer raise an exception if
+            ``retrieve`` that depend upon activation may no longer raise an exception if
             they are called when ``advance`` has not been called after ``learn``, possibly
             producing biologically implausible results.
         """
@@ -593,7 +604,7 @@ class Memory(dict):
 
     @property
     def chunks(self):
-        """ Returns a :class:`list` of the :class:`Chunk`s contained in this :class:`Memory`.
+        """ Returns a :class:`list` of the :class:`Chunk` objects contained in this :class:`Memory`.
         """
         return list(self.values())
 
@@ -648,25 +659,25 @@ class Memory(dict):
 
     def learn(self, slots, advance=None):
         """Adds, or reinforces, a chunk in this Memory with the attributes specified by *slots*.
-        The attributes, or slots, of a chunk are described using the :class:`abc.Mapping`
+        The attributes, or slots, of a chunk are described using the :class:`Mapping`
         *slots*, the keys of which must be non-empty strings and are the attribute names.
         All the values of the various *slots* must be :class:`Hashable`.
 
         Returns ``True`` if a new chunk has been created, and ``False`` if instead an
         already existing chunk has been re-experienced and thus reinforced.
 
-        Note that after learning one or more chunks, before :meth:`retrieve` or
+        Note that after learning one or more chunks, before :meth:`retrieve`,
         :meth:`blend` or similar methods can be called :meth:`advance` must be called,
         lest the chunk(s) learned have infinite activation.
+        Because it is so common to call :meth:`advance` immediately after :meth"`learn`
+        as a convenience if *advance* is not None just before :meth:`learn` returns
+        :meth:`advance` with *advance* as its argument, without an argument if *advance*
+        is ``True``.
 
         Raises a :exc:`TypeError` if an attempt is made to learn an attribute value that
         is not :class:`Hashable`. Raises a :exc:`ValueError` if no *slots* are provided,
         or if any of the keys of *slots* are not non-empty strings.
 
-        Because it is so common to call :meth:`advance` immediately after :meth"`learn`
-        as a convenience if *advance* is not None just before :meth:`learn` returns
-        :meth:`advance` with *advance* as its argument, without an argument if *advance*
-        is ``True``.
 
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":4})
@@ -895,7 +906,7 @@ class Memory(dict):
         If there is no such matching chunk returns ``None``.
         Normally only retrieves chunks exactly matching the *slots*; if *partial* is
         ``True`` it also retrieves those only approximately matching, using similarity
-        (see :func:`set_similarity_function`) and :attr:`mismatch` to determine closeness
+        (see :meth:`similarity`) and :attr:`mismatch` to determine closeness
         of match.
 
         If *rehearse* is supplied and true it also reinforces this chunk at the current
@@ -997,7 +1008,7 @@ class Memory(dict):
         """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
         The extreme value is normally the maximum, but can be made the minimum by setting
         *minimize* to ``True``. The *iterable* is an :class:`Iterable` of
-        :class:`abc.Mapping` objects, mapping attribute names to values, suitable for
+        :class:`Mapping` objects, mapping attribute names to values, suitable for
         passing as the *slots* argument to :meth:`blend`. The first
         return value is the *iterable* value producing the best blended value, and the
         second is that blended value. If there is a tie, with two or more *iterable* values
@@ -1010,8 +1021,8 @@ class Memory(dict):
         For the common case where *iterable* iterates over only the values of a single
         slot the *select_attribute* parameter may be used to simplify the iteration. If
         *select_attribute* is supplied and is not ``None`` then *iterable* should produce
-        values of that attribute instead of :class:`abc.Mapping` objects. Similarly the
-        first return value will be the attribute value rather than a :class:`abc.Mapping`
+        values of that attribute instead of :class:`Mapping` objects. Similarly the
+        first return value will be the attribute value rather than a :class:`Mapping`
         object. The end of the example below demonstrates this.
 
         >>> m = Memory()
@@ -1067,6 +1078,8 @@ class Memory(dict):
 
     def discrete_blend(self, outcome_attribute, slots={}):
         """Returns the value for the given attribute of those chunks matching *slots*, that maximizes the aggregate probabilities of retrieval of those chunks.
+        Also returns a second value, a list of 2-tuples mapping the possible values
+        of *outcome_attribute* to their probabilities of retrieval.
         Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*.
 
@@ -1088,7 +1101,7 @@ class Memory(dict):
         >>> m.advance()
         4
         >>> m.discrete_blend("kind", {"age": "old"})
-        ('tilset', (('tilset', 0.9540373563209859), ('limburger', 0.04596264367901423)))
+        ('tilset', [('tilset', 0.9540373563209859), ('limburger', 0.04596264367901423)])
         """
         probs, chunks = self._blend(outcome_attribute, slots)
         if not chunks:
@@ -1106,7 +1119,7 @@ class Memory(dict):
                 best_value = v
             elif v == best_value:
                 best.append(k)
-        return random.choice(best), tuple(candidates.items())
+        return random.choice(best), list(candidates.items())
 
     def similarity(self, attributes, function=None, weight=None):
         """Assigns a similarity function and/or corresponding weight to be used when comparing attribute values with the given *attributes*.
