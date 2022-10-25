@@ -5,6 +5,7 @@ import pyactup
 
 import math
 import numpy as np
+import pickle
 import pytest
 import sys
 
@@ -461,6 +462,61 @@ def test_blend():
     m.advance()
     with pytest.raises(TypeError):
         m.blend("a", b=1)
+    m.reset()
+    m.similarity(["n"], lambda x, y: 1 - abs(x - y) / 100, 0.5)
+    s_sims = {("a", "b"): 0.5, ("a", "c"): 0.1, ("b", "c"): 0.9}
+    m.similarity(["s"], lambda x, y: s_sims[tuple(sorted([x, y]))], 0.75)
+    m.mismatch = 1
+    m.learn({"b": 0, "e": 0, "n": 0, "s": "a"}, advance=True)
+    m.learn({"b": 100, "e": 0, "n": 50, "s": "b"}, advance=True)
+    m.learn({"b": 0, "e": 1, "n": 0, "s": "a"}, advance=True)
+    m.learn({"b": 0, "e": 0, "n": 0, "s": "c"}, advance=True)
+    m.learn({"b": -100, "e": 0, "n": 10, "s": "c"}, advance=1000)
+    m.learn({"b": 50, "e": 0, "n": 90, "s": "a"}, advance=True)
+    m.learn({"b": 100, "e": 0, "n": 50, "s": "b"}, advance=True)
+    m.learn({"b": 10, "e": 0, "n": 50, "s": "b"}, advance=True)
+    m.learn({"b": 100, "e": 0, "n": 50, "s": "b"}, advance=True)
+    m.learn({"b": 0, "e": 1, "n": 0, "s": "a"}, advance=True)
+    m.activation_history = True
+    bv = m.blend("b", {"e": 0, "n": 35, "s": "b"})
+    assert isclose(bv, 65.11022723666353)
+    assert len(m.activation_history) == 6
+    for i, c, b, mm, a, p in [
+            (0, 0, -3.4583575101768043, -0.55, -4.008357510176804, 0.009142172839621356),
+            (1, 1, 0.2139847941319404, -0.07500000000000001, 0.1389847941319404, 0.5783853778285616),
+            (2, 3, -3.4568686753298423, -0.24999999999999997, -3.7068686753298423, 0.012359029390679085),
+            (3, 4, -3.456371410246588, -0.19999999999999998, -3.6563714102465883, 0.012999152795579281),
+            (4, 1004, -0.8047189562170503, -0.65, -1.4547189562170502, 0.11751155154774308),
+            (5, 1006, -0.5493061443340549, -0.07500000000000001, -0.624306144334055, 0.2696027155978155)]:
+        h = m.activation_history[i]
+        assert h["creation_time"] == c
+        assert isclose(h["base_level_activation"], b)
+        assert isclose(h["mismatch"], mm)
+        assert isclose(h["activation"], a)
+        assert isclose(h["retrieval_probability"], p)
+    m.threshold = -3
+    m.activation_history = True
+    bv = m.blend("b", {"e": 0, "n": 35, "s": "b"})
+    assert isclose(bv, 68.78318688351413)
+    assert len(m.activation_history) == 6
+    for i, c, b, mm, a, p in [
+            (0, 0, -3.4583575101768043, -0.55, -4.008357510176804, None),
+            (1, 1, 0.2139847941319404, -0.07500000000000001, 0.1389847941319404, 0.5990529161137754),
+            (2, 3, -3.4568686753298423, -0.24999999999999997, -3.7068686753298423, None),
+            (3, 4, -3.456371410246588, -0.19999999999999998, -3.6563714102465883, None),
+            (4, 1004, -0.8047189562170503, -0.65, -1.4547189562170502, 0.1217106108318589),
+            (5, 1006, -0.5493061443340549, -0.07500000000000001, -0.624306144334055, 0.27923647305436566)]:
+        h = m.activation_history[i]
+        assert h["creation_time"] == c
+        assert isclose(h["base_level_activation"], b)
+        assert isclose(h["mismatch"], mm)
+        assert isclose(h["activation"], a)
+        if p:
+            assert h["meets_threshold"]
+            assert isclose(h["retrieval_probability"], p)
+        else:
+            assert not h["meets_threshold"]
+            assert h.get("retrieval_probability") is None
 
 def test_best_blend():
     m = Memory(temperature=1, noise=0)
@@ -548,129 +604,129 @@ def test_discrete_blend():
     assert b == 99
     assert isclose(dict(p)[64], 0.009996654073373832)
 
-# def test_mixed_slots():
-#     m = Memory(temperature=1, noise=0)
-#     m.learn({"decision":"A", "color":"red", "size":1, "utility":0})
-#     m.advance()
-#     m.learn({"decision":"A", "color":"blue", "size":4, "utility":100})
-#     m.advance()
-#     m.learn({"decision":"A", "color":"red", "size":3, "utility":10})
-#     m.advance()
-#     m.learn({"decision":"B", "color":"red", "size":3, "utility":50})
-#     m.advance()
-#
-#     def run_once(d_ret_u=0, d_ret_a=0, d_ret_m=None,
-#                  c_ret_u=0, c_ret_a=0, c_ret_m=None,
-#                  d_blnd_u=0, d_blnd_a=0, d_blnd_m=None,
-#                  c_blnd_u=0, c_blnd_a=0, c_blnd_m=None,
-#                  s_blnd_u=0, s_blnd_a=0, s_blnd_m=None,
-#                  d_best=None, d_best_v=0, d_best_a=0, d_best_m=None,
-#                  c_best=None, c_best_v=0, c_best_a=0, c_best_m=None,
-#                  print_only=False): # print_only=True useful for debugging, etc.
-#         ah = []
-#         m.activation_history = ah
-#         r = m.retrieve({"decision":"A"}, partial=True)
-#         mp = ah[-1].get("mismatch")
-#         if print_only:
-#             print("d_ret_u =", r["utility"], ", d_ret_a =", ah[-1]["activation"], ", d_ret_m =", mp)
-#         else:
-#             assert r["utility"] == d_ret_u
-#             assert isclose(ah[-1]["activation"], d_ret_a)
-#             assert mp is d_ret_m or isclose(mp, d_ret_m)
-#
-#         ah.clear()
-#         r = m.retrieve({"color":"red"}, partial=True)
-#         mp = ah[-1].get("mismatch")
-#         if print_only:
-#             print("c_ret_u =", r["utility"], ", c_ret_a =", ah[-1]["activation"],  ", c_ret_m = ", mp)
-#         else:
-#             assert r["utility"] == c_ret_u
-#             assert isclose(ah[-1]["activation"], c_ret_a)
-#             assert mp is c_ret_m or isclose(mp, c_ret_m)
-#
-#         ah.clear()
-#         b = m.blend("utility", {"decision":"A"})
-#         mp = ah[-1].get("mismatch")
-#         if print_only:
-#             print("d_blnd_u =", b, ", d_blnd_a =", ah[-1]["activation"], ", d_blnd_m =", mp)
-#         else:
-#             assert b == d_blnd_u
-#             assert isclose(ah[-1]["activation"], d_blnd_a)
-#             assert mp is d_blnd_m or isclose(mp, d_blnd_m)
-#
-#         ah.clear()
-#         b = m.blend("utility", {"color":"red"})
-#         mp = ah[-1].get("mismatch")
-#         if print_only:
-#             print("c_blnd_u =", b, ", c_blnd_a =", ah[-1]["activation"], ", c_blnd_m =", mp)
-#         else:
-#             assert b == c_blnd_u
-#             assert isclose(ah[-1]["activation"], c_blnd_a)
-#             assert mp is c_blnd_m or isclose(mp, c_blnd_m)
-#
-#         ah.clear()
-#         b = m.blend("utility", {"size":2})
-#         mp = ah[-1].get("mismatch") if ah else None
-#         if print_only:
-#             print("s_blnd_u =", b, ", s_blnd_a =", ah and ah[-1]["activation"], ", s_blnd_m =", mp)
-#         else:
-#             assert b == s_blnd_u
-#             assert isclose(ah[-1]["activation"], s_blnd_a) if ah else s_blnd_a is None
-#             assert mp is s_blnd_m or isclose(mp, s_blnd_m)
-#
-#         ah.clear()
-#         d, v = m.best_blend("utility", "AB", "decision")
-#         mp = ah[-1].get("mismatch")
-#         if print_only:
-#             print("d_best =", d, ", d_best_v =", v, ", d_best_a =", ah[-1]["activation"], ", d_best_m =", mp)
-#         else:
-#             assert d == d_best
-#             assert v == d_best_v
-#             assert isclose(ah[-1]["activation"], d_best_a)
-#             assert mp is d_best_m or isclose(mp, d_best_m)
-#
-#         ah.clear()
-#         c, v = m.best_blend("utility", ("red", "blue"), "color")
-#         mp = ah[-1].get("mismatch")
-#         if print_only:
-#             print("c_best =", d, ", c_best_v =", v, ", c_best_a =", ah[-1]["activation"], ", c_best_m =", mp)
-#         else:
-#             assert d == c_best
-#             assert v == c_best_v
-#             assert isclose(ah[-1]["activation"], c_best_a)
-#             assert mp is c_best_m or isclose(mp, c_best_m)
-#
-#     run_once(10, -0.3465735902799726, None,
-#              50, 0, None,
-#              36.31698208548453, -0.3465735902799726, None,
-#              25.85786437626905, 0, None,
-#              None, None, None,
-#              "B", 50, 0, None,
-#              "B", 100, -0.5493061443340549, None)
-#     m.mismatch = 1
-#     run_once(10, -0.3465735902799726, 0,
-#              50, 0, 0,
-#              36.31698208548453, -0.3465735902799726, 0,
-#              25.85786437626905, 0, 0,
-#              None, None, None,
-#              "B", 50, 0, 0,
-#              "B", 100, -0.5493061443340549, 0)
-#     set_similarity_function(True, ["color"])
-#     run_once(10, -0.3465735902799726, 0,
-#              50, 0, 0,
-#              36.31698208548453, -0.3465735902799726, 0,
-#              32.366410445083744, 0, 0,
-#              None, None, None,
-#              "B", 50, 0, 0,
-#              "B", 56.669062843109664, -1, -1)
-#     set_similarity_function(lambda x, y: 1 - abs(x - y) / 4, ["size"])
-#     run_once(10, -0.3465735902799726, 0,
-#              50, 0, 0,
-#              36.31698208548453, -0.3465735902799726, 0,
-#              32.366410445083744, 0, 0,
-#              38.406038686568394, -0.25, -0.25,
-#              "B", 50, 0, 0,
-#              "B", 56.669062843109664, -1, -1)
+def test_mixed_slots():
+    m = Memory(temperature=1, noise=0)
+    m.learn({"decision":"A", "color":"red", "size":1, "utility":0})
+    m.advance()
+    m.learn({"decision":"A", "color":"blue", "size":4, "utility":100})
+    m.advance()
+    m.learn({"decision":"A", "color":"red", "size":3, "utility":10})
+    m.advance()
+    m.learn({"decision":"B", "color":"red", "size":3, "utility":50})
+    m.advance()
+
+    def run_once(d_ret_u=0, d_ret_a=0, d_ret_m=None,
+                 c_ret_u=0, c_ret_a=0, c_ret_m=None,
+                 d_blnd_u=0, d_blnd_a=0, d_blnd_m=None,
+                 c_blnd_u=0, c_blnd_a=0, c_blnd_m=None,
+                 s_blnd_u=0, s_blnd_a=0, s_blnd_m=None,
+                 d_best=None, d_best_v=0, d_best_a=0, d_best_m=None,
+                 c_best=None, c_best_v=0, c_best_a=0, c_best_m=None,
+                 print_only=False): # print_only=True useful for debugging, etc.
+        ah = []
+        m.activation_history = ah
+        r = m.retrieve({"decision":"A"}, partial=True)
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("d_ret_u =", r["utility"], ", d_ret_a =", ah[-1]["activation"], ", d_ret_m =", mp)
+        else:
+            assert isclose(r["utility"], d_ret_u)
+            assert isclose(ah[-1]["activation"], d_ret_a)
+            assert isclose(mp, d_ret_m) if d_ret_m is not None else not mp
+
+        ah.clear()
+        r = m.retrieve({"color":"red"}, partial=True)
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("c_ret_u =", r["utility"], ", c_ret_a =", ah[-1]["activation"],  ", c_ret_m = ", mp)
+        else:
+            assert isclose(r["utility"], c_ret_u)
+            assert isclose(ah[-1]["activation"], c_ret_a)
+            assert mp is c_ret_m or isclose(mp, c_ret_m)
+
+        ah.clear()
+        b = m.blend("utility", {"decision":"A"})
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("d_blnd_u =", b, ", d_blnd_a =", ah[-1]["activation"], ", d_blnd_m =", mp)
+        else:
+            assert isclose(b, d_blnd_u)
+            assert isclose(ah[-1]["activation"], d_blnd_a)
+            assert (mp is d_blnd_m or isclose(mp, d_blnd_m)) if d_blnd_m is not None else not mp
+
+        ah.clear()
+        b = m.blend("utility", {"color":"red"})
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("c_blnd_u =", b, ", c_blnd_a =", ah[-1]["activation"], ", c_blnd_m =", mp)
+        else:
+            assert isclose(b, c_blnd_u)
+            assert isclose(ah[-1]["activation"], c_blnd_a)
+            assert mp is c_blnd_m or isclose(mp, c_blnd_m)
+
+        ah.clear()
+        b = m.blend("utility", {"size":2})
+        mp = ah[-1].get("mismatch") if ah else None
+        if print_only:
+            print("s_blnd_u =", b, ", s_blnd_a =", ah and ah[-1]["activation"], ", s_blnd_m =", mp)
+        else:
+            assert isclose(b, s_blnd_u) if s_blnd_u is not None else not b
+            assert isclose(ah[-1]["activation"], s_blnd_a) if ah else s_blnd_a is None
+            assert mp is s_blnd_m or isclose(mp, s_blnd_m)
+
+        ah.clear()
+        d, v = m.best_blend("utility", "AB", "decision")
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("d_best =", d, ", d_best_v =", v, ", d_best_a =", ah[-1]["activation"], ", d_best_m =", mp)
+        else:
+            assert d == d_best
+            assert v == d_best_v
+            assert isclose(ah[-1]["activation"], d_best_a)
+            assert mp is d_best_m or isclose(mp, d_best_m)
+
+        ah.clear()
+        c, v = m.best_blend("utility", ("red", "blue"), "color")
+        mp = ah[-1].get("mismatch")
+        if print_only:
+            print("c_best =", d, ", c_best_v =", v, ", c_best_a =", ah[-1]["activation"], ", c_best_m =", mp)
+        else:
+            assert d == c_best
+            assert isclose(v, c_best_v)
+            assert isclose(ah[-1]["activation"], c_best_a)
+            assert mp is c_best_m or isclose(mp, c_best_m)
+
+    run_once(10, -0.3465735902799726, None,
+             50, 0, None,
+             36.31698208548453, -0.3465735902799726, None,
+             25.85786437626905, 0, None,
+             None, None, None,
+             "B", 50, 0, None,
+             "B", 100, -0.5493061443340549, None)
+    m.mismatch = 1
+    run_once(10, -0.3465735902799726, None,
+             50, 0, None,
+             36.31698208548453, -0.3465735902799726, None,
+             25.85786437626905, 0, None,
+             None, None, None,
+             "B", 50, 0, None,
+             "B", 100, -0.5493061443340549, None)
+    m.similarity(["color"], True)
+    run_once(10, -0.3465735902799726, None,
+             50, 0, 0,
+             36.31698208548453, -0.3465735902799726, None,
+             32.366410445083744, 0, 0,
+             None, None, None,
+             "B", 50, 0, None,
+             "B", 56.669062843109664, -1, -1)
+    m.similarity(["size"], lambda x, y: 1 - abs(x - y) / 4)
+    run_once(10, -0.3465735902799726, None,
+             50, 0, 0,
+             36.31698208548453, -0.3465735902799726, None,
+             32.366410445083744, 0, 0,
+             38.406038686568394, -0.25, -0.25,
+             "B", 50, 0, None,
+             "B", 56.669062843109664, -1, -1)
 
 def test_fixed_noise():
     N = 300
@@ -841,3 +897,54 @@ def test_chunks_and_references():
     assert m.chunks[0].references == [7]
     assert m.chunks[1].references == [8]
     assert m.chunks[2].references == [3]
+
+def pickle_sim_1(x, y):
+    return 1 - abs(x - y) / 100
+
+def pickle_sim_2(x, y):
+    return {("a", "b"): 0.5, ("a", "c"): 0.1, ("b", "c"): 0.9}[tuple(sorted([x, y]))]
+
+def test_pickle():
+    m = Memory(temperature=0.97, noise=0, decay=0.43, threshold=-2.9, mismatch=1.1,
+               optimized_learning=2)
+    m.similarity(["n"], pickle_sim_1 , 0.5)
+    m.similarity(["s"], pickle_sim_2 , 0.75)
+    m.learn({"b": 0, "e": 0, "n": 0, "s": "a"}, advance=True)
+    m.learn({"b": 100, "e": 0, "n": 50, "s": "b"}, advance=True)
+    m.learn({"b": 0, "e": 1, "n": 0, "s": "a"}, advance=True)
+    m.learn({"b": 0, "e": 0, "n": 0, "s": "c"}, advance=True)
+    m.learn({"b": -100, "e": 0, "n": 10, "s": "c"}, advance=1000)
+    m.learn({"b": 50, "e": 0, "n": 90, "s": "a"}, advance=True)
+    m.learn({"b": 100, "e": 0, "n": 50, "s": "b"}, advance=True)
+    m.learn({"b": 10, "e": 0, "n": 50, "s": "b"}, advance=True)
+    m.learn({"b": 100, "e": 0, "n": 50, "s": "b"}, advance=True)
+    m.learn({"b": 0, "e": 1, "n": 0, "s": "a"}, advance=True)
+    def capture():
+        m.activation_history = True
+        r = m.retrieve({"e": 1})
+        bv = m.blend("b", {"e": 0, "n": 35, "s": "b"})
+        return [len(m),
+                m.time,
+                m.chunks,
+                m.noise or r,
+                m.noise or bv,
+                m.noise or m.activation_history,
+                m.noise,
+                m.decay,
+                m.temperature,
+                m.threshold,
+                m.mismatch,
+                m.optimized_learning]
+    save = capture()
+    sys.setrecursionlimit(100_000)
+    m = pickle.loads(pickle.dumps(m))
+    assert capture() == save
+    m.noise=0.273
+    m = pickle.loads(pickle.dumps(m))
+    assert capture() != save
+    save = capture()
+    m = pickle.loads(pickle.dumps(m))
+    assert capture() == save
+    m.similarity(["n"], lambda x, y: 1 - abs(x - y) / 100, 0.5)
+    with pytest.raises(Exception):
+        pickle.dumps(m)

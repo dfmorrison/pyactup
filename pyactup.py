@@ -534,13 +534,15 @@ class Memory(dict):
         In addition to activation computations, the resulting retrieval probabilities are
         also collected for blending operations.
         The details collected are presented as dictionaries.
+        As a convenience setting :attr:`activation_history` to ``True`` assigns a fresh,
+        empty list as its value.
 
         If PyACTUp is being using in a loop, the details collected will likely become
         voluminous. It is usually best to clear them frequently, such as on each
         iteration.
 
-        Attempting to set :attr:`activation_history` to anything but ``None`` or a
-        :class:`MutableSequence` raises a :exc:`ValueError`.
+        Attempting to set :attr:`activation_history` to anything but ``None``, ``True`` or
+        a :class:`MutableSequence` raises a :exc:`ValueError`.
 
         >>> m = Memory()
         >>> m.learn({"color": "red", "size": 3})
@@ -573,6 +575,7 @@ class Memory(dict):
           'activation_noise': 0.4191470689622754,
           'activation': 0.4191470689622754,
           'retrieval_probability': 0.905269525909957}]
+
         """
         return self._activation_history
 
@@ -580,6 +583,8 @@ class Memory(dict):
     def activation_history(self, value):
         if value is None or value is False:
             self._activation_history = None
+        elif value is True:
+            self._activation_history = list()
         elif isinstance(value, abc.MutableSequence):
             self._activation_history = value
         else:
@@ -784,7 +789,7 @@ class Memory(dict):
                         continue
                     chunks.append(c)
         if not chunks:
-            return None, None
+            return None, None, 0
         nchunks = len(chunks)
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             try:
@@ -871,6 +876,7 @@ class Memory(dict):
                         self._activation_history[i]["activation"] = r
                         if self._threshold is not None:
                             self._activation_history[i]["meets_threshold"] = (r >= self._threshold)
+                raw_activations_count = len(result)
                 if self._threshold is not None:
                     m = ma.masked_less(result, self._threshold)
                     if ma.is_masked(m):
@@ -880,9 +886,9 @@ class Memory(dict):
                 raise RuntimeError(f"Error when computing activations, perhaps a chunk's "
                                    f"creation or reinforcement time is not in the past? ({e})")
         if result.size == 0:
-            return None, None
+            return None, None, raw_activations_count
         else:
-            return result, chunks
+            return result, chunks, raw_activations_count
 
     def retrieve(self, slots={}, partial=False, rehearse=False):
         """Returns the chunk matching the *slots* that has the highest activation greater than or equal to this Memory's :attr:`threshold`, if any.
@@ -913,7 +919,8 @@ class Memory(dict):
         >>> m.retrieve({"color":"blue"})["widget"]
         'snackleizer'
         """
-        activations, chunks = self._activations(Memory._ensure_slots(slots), partial=partial)
+        activations, chunks, ignore = self._activations(Memory._ensure_slots(slots),
+                                                        partial=partial)
         if chunks is None:
             return None
         max = np.finfo(activations.dtype).min
@@ -933,16 +940,22 @@ class Memory(dict):
 
     def _blend(self, outcome_attribute, slots):
         Memory._ensure_slot_name(outcome_attribute)
-        activations, chunks = self._activations(Memory._ensure_slots(slots),
-                                                extra=outcome_attribute)
-        if not chunks:
+        activations, chunks, raw = self._activations(Memory._ensure_slots(slots),
+                                                     extra=outcome_attribute)
+        if chunks is None:
             return None, None
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             wp = np.exp(activations / self._temperature)
             wp /= np.sum(wp)
             if self._activation_history is not None:
-                for p, i in zip(wp, count(len(self._activation_history) - wp.size)):
-                    self._activation_history[i]["retrieval_probability"] = p
+                h = self._activation_history
+                # this i malarkey is in case one or more candidates didn't clear the threshold
+                i = len(h) - raw
+                for p, c in zip(wp, chunks):
+                    while h[i]["name"] != c._name:
+                        i += 1
+                        assert i < len(h)
+                    h[i]["retrieval_probability"] = p
         return wp, chunks
 
     def blend(self, outcome_attribute, slots={}):
@@ -968,7 +981,7 @@ class Memory(dict):
         1.221272238515685
         """
         probs, chunks = self._blend(outcome_attribute, slots)
-        if not chunks:
+        if chunks is None:
             return None
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             try:
