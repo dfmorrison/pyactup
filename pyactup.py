@@ -722,7 +722,7 @@ class Memory(dict):
         if attributes is not None:
             slots = {a: slots[a] for a in attributes}
         if not (result := tuple(sorted(slots.items()))):
-            raise ValueError(f"No attributes provided to {fname}()")
+            raise ValueError(f"No attributes provided{' to {fname}()' if fname else ''}")
         return result
 
     def _cite(self, chunk):
@@ -776,7 +776,7 @@ class Memory(dict):
             del self[signature]
         return True
 
-    def _activations(self, conditions, extra=None, partial=True):
+    def _matching_chunks(self, conditions, extra, partial):
         slot_names = conditions.keys()
         if extra:
             slot_names = set(slot_names)
@@ -798,7 +798,11 @@ class Memory(dict):
                     if not all(c[n] == v for n, v in exact_slots):
                         continue
                     chunks.append(c)
-        if not chunks:
+        return chunks, partial_slots
+
+    def _activations(self, conditions, extra=None, partial=True):
+        chunks, partial_slots = self._matching_chunks(conditions, extra, partial)
+        if len(chunks) == 0:
             return None, None, 0
         nchunks = len(chunks)
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
@@ -1264,7 +1268,7 @@ class UniformMemory (Memory):
             self._attributes[name] = val
         for n in exact:
             add_attr(n, "e")
-        self._exact_attributes = tuple(exact)
+        self._exact_attributes = set(exact)
         for n in numeric:
             add_attr(n, "n")
         self._numeric_attributes = tuple(numeric)
@@ -1273,6 +1277,8 @@ class UniformMemory (Memory):
         for n in partial:
             add_attr(n, "p")
             self.similarity([n], True)
+        self._partial_slots = set(partial)
+        self._easy_match_slots = self._exact_attributes.union(self._partial_slots)
         self._index = dict()
 
     def similarity(self, attributes, function=None, weight=None):
@@ -1304,7 +1310,7 @@ class UniformMemory (Memory):
                         raise RuntimeError(f"No value provided for numeric attribute {n}")
         return slots
 
-    def learn(self, slots, advance=1):
+    def learn(self, slots, advance=None):
         result = super().learn(slots, advance)
         if result is not None:
             signature = Memory._signature(slots, "learn", self._exact_attributes)
@@ -1316,6 +1322,38 @@ class UniformMemory (Memory):
             for a, i in zip(self._numeric_attributes, count()):
                 umci._numerics[i].append(result[a])
         return result
+
+    # TODO implement forget(); remember that the UMChunkInfo needs to be removed if it goes empty
+
+    def _matching_chunks(self, conditions, extra, partial):
+        condition_set = set(conditions)
+        if self._exact_attributes <= condition_set:
+            umci = self._index.get(Memory._signature(conditions, None, self._exact_attributes))
+            if umci is None:
+                return [], None
+            if len(condition_set) == len(self._exact_attributes):
+                return umci._chunks, []
+            if partial and self._mismatch:
+                partial_slots = [(n, conditions[n], self._similarities[n])
+                                 for n in self._partial_slots.intersection(condition_set)]
+            else:
+                partial_slots = []
+            if len(condition_set) == len(self._exact_attributes) + len(partial_slots):
+                return umci._chunks, partial_slots
+            refine_by = condition_set.difference(self._exact_attributes.union(
+                self._partial_slots if self._mismatch else {}))
+            chunks = []
+            for c in umci._chunks:
+                if not all(c[n] == v for n, v in refine_by):
+                    continue
+                chunks.append(c)
+            return chunks, partial_slots
+        else:
+            return super()._matching_chunks(conditions, extra, partial)
+
+
+
+
 
 
 class UMChunkInfo:
