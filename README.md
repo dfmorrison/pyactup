@@ -6,7 +6,7 @@ inspired by the ACT-UP cognitive modeling toolbox.
 There is [online documentation of PyACTUp](http://halle.psy.cmu.edu/pyactup/),
 and the [sources](https://bitbucket.org/dfmorrison/pyactup/) are on Bitbucket.
 
-PyACTUp requires Python version 3.7 or later. PyACTUp also works in
+PyACTUp requires Python version 3.8 or later. PyACTUp also works in
 recent versions of PyPy.
 
 Normally, assuming you are connected to the internet, to install

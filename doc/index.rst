@@ -56,7 +56,7 @@ may be required to upgrade projects using the current version of PyACTUp to a la
 Installing PyACTUp
 ==================
 
-PyACTUp requires Python version 3.7 or later. Recent versions of Mac OS X and recent Linux distributions
+PyACTUp requires Python version 3.8 or later. Recent versions of Mac OS X and recent Linux distributions
 are likely to have a suitable version of Python pre-installed, but it may need to be invoked as ``python3``
 instead of just ``python``, which latter often runs a 2.x version of Python instead. Use of a virtual environment,
 which is recommended, often obviates the need for the ``python3``/``python`` distinction.
@@ -70,7 +70,7 @@ run noticeably faster in PyPy compared to CPython.
 Note that PyACTUp is simply a Python module, a library, that is run as part of a larger
 Python program. To build and run models using PyACTUp you do need to do
 some Python programming. If you're new to Python, a good place to
-start learning it is `The Python Tutorial <https://docs.python.org/3.7/tutorial/>`_.
+start learning it is `The Python Tutorial <https://docs.python.org/3.8/tutorial/>`_.
 To write and run a Python program you need to create and edit Python
 source files, and then run them. If you are comfortable using the command
 line, you can simply create and edit the files in your favorite text editor,
@@ -78,7 +78,7 @@ and run them from the command line. Many folks, though, are happier using
 a graphical Integrated Development Environment (IDE).
 `Many Python IDEs are available <https://wiki.python.org/moin/IntegratedDevelopmentEnvironments>`_.
 One  is
-`IDLE <https://docs.python.org/3.7/library/idle.html>`_,
+`IDLE <https://docs.python.org/3.8/library/idle.html>`_,
 which comes packaged with Python itself, so if you installed Python
 you should have it available.
 
@@ -555,6 +555,7 @@ Changes to PyACTUp
 Changes between versions 1.1.4 and 2.0
 --------------------------------------
 
+* PyACTUp now requires Python 3.8 or later.
 * Changed the arguments to learn(), forget(), retrieve() and blend().
 * There is now a new discrete_blend() method.
 * Similarity functions are now per-memory, and are set using the similarity() method,

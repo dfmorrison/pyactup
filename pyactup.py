@@ -61,7 +61,7 @@ from prettytable import PrettyTable
 from pylru import lrucache
 from warnings import warn
 
-__all__ = ["Memory"]
+__all__ = ["Memory", "UniformMemory"]
 
 DEFAULT_NOISE = 0.25
 DEFAULT_DECAY = 0.5
@@ -87,7 +87,7 @@ class Memory(dict):
     initial values can be supplied as parameters.
 
     A ``Memory`` object can be serialized with `pickle
-    <https://docs.python.org/3.6/library/pickle.html>`_ allowing Memory objects to be
+    <https://docs.python.org/3.8/library/pickle.html>`_ allowing Memory objects to be
     saved to and restored from persistent storage, so long as any similarity functions it
     contains are defined at the top level of a module using ``def``. Note that attempts to
     pickle a Memory object containing a similarity function defined as a lambda function,
@@ -95,13 +95,12 @@ class Memory(dict):
     that pickle only includes the function name in the pickled object, not its definition.
     Also, if the contents of a ``Memory`` object are sufficiently complicated it may be
     necessary to raise Python's recursion limit with
-    `sys.setrecusionlimit <https://docs.python.org/3.7/library/sys.html#sys.setrecursionlimit>`_.
+    `sys.setrecusionlimit <https://docs.python.org/3.8/library/sys.html#sys.setrecursionlimit>`_.
 
     If, when creating a ``Memory`` object, any of the various parameters have unsupported
     values an :exc:`Exception` will be raised. See the documentation for the various
     properties that can be used for setting these parameters for further details about
     what values are or are not supported.
-
     """
 
     def __init__(self,
@@ -663,8 +662,8 @@ class Memory(dict):
         *slots*, the keys of which must be non-empty strings and are the attribute names.
         All the values of the various *slots* must be :class:`Hashable`.
 
-        Returns ``True`` if a new chunk has been created, and ``False`` if instead an
-        already existing chunk has been re-experienced and thus reinforced.
+        Returns the chunk created if a new chunk has been created, and ``None`` if
+        instead an already existing chunk has been re-experienced and thus reinforced.
 
         Note that after learning one or more chunks, before :meth:`retrieve`,
         :meth:`blend` or similar methods can be called :meth:`advance` must be called,
@@ -677,7 +676,6 @@ class Memory(dict):
         Raises a :exc:`TypeError` if an attempt is made to learn an attribute value that
         is not :class:`Hashable`. Raises a :exc:`ValueError` if no *slots* are provided,
         or if any of the keys of *slots* are not non-empty strings.
-
 
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":4})
@@ -693,7 +691,7 @@ class Memory(dict):
         >>> m.retrieve({"color": "red"})
         <Chunk 0000 {'color': 'red', 'size': 4} 2>
         """
-        slots = Memory._ensure_slots(slots)
+        slots = self._ensure_slots(slots, True)
         signature = Memory._signature(slots, "learn")
         created = False
         if not (chunk := self.get(signature)):
@@ -706,22 +704,23 @@ class Memory(dict):
             self.advance()
         elif advance is not None:
             self.advance(advance)
-        return created
+        return chunk if created else None
 
     @staticmethod
     def _ensure_slot_name(name):
         if not (isinstance(name, str) and len(name) > 0):
                 raise ValueError(f"Attribute name {name} is not a non-empty string")
 
-    @staticmethod
-    def _ensure_slots(slots):
+    def _ensure_slots(self, slots, learn=False):
         slots = dict(slots)
         for name in slots.keys():
             Memory._ensure_slot_name(name)
         return slots
 
     @staticmethod
-    def _signature(slots, fname):
+    def _signature(slots, fname, attributes=None):
+        if attributes is not None:
+            slots = {a: slots[a] for a in attributes}
         if not (result := tuple(sorted(slots.items()))):
             raise ValueError(f"No attributes provided to {fname}()")
         return result
@@ -760,7 +759,7 @@ class Memory(dict):
         """
         if self._optimized_learning is not None:
             raise RuntimeError("The forget() method cannot be used with optimized learning")
-        slots = Memory._ensure_slots(slots)
+        slots = self._ensure_slots(slots)
         signature = Memory._signature(slots, "forget")
         chunk = self.get(signature)
         if not chunk:
@@ -930,7 +929,7 @@ class Memory(dict):
         >>> m.retrieve({"color":"blue"})["widget"]
         'snackleizer'
         """
-        activations, chunks, ignore = self._activations(Memory._ensure_slots(slots),
+        activations, chunks, ignore = self._activations(self._ensure_slots(slots),
                                                         partial=partial)
         if chunks is None:
             return None
@@ -951,7 +950,7 @@ class Memory(dict):
 
     def _blend(self, outcome_attribute, slots):
         Memory._ensure_slot_name(outcome_attribute)
-        activations, chunks, raw = self._activations(Memory._ensure_slots(slots),
+        activations, chunks, raw = self._activations(self._ensure_slots(slots),
                                                      extra=outcome_attribute)
         if chunks is None:
             return None, None
@@ -1247,6 +1246,86 @@ class Similarity:
         self._cache[signature] = result
         self._cache[(y, x)] = result
         return result
+
+
+class UniformMemory (Memory):
+    """ TODO
+    """
+
+    def __init__(self, exact=[], partial=[], numeric=[], other=[], **kwargs):
+        super().__init__(**kwargs)
+        if len(exact) + len(partial) + len(numeric) + len(other) == 0:
+            raise RuntimeError("No attributes provided for UniformMemory")
+        self._attributes = dict()
+        def add_attr(name, val):
+            Memory._ensure_slot_name(name)
+            if self._attributes.get(name):
+                raise ValueError(f"Duplicate attribute name {name} in UniformMemory")
+            self._attributes[name] = val
+        for n in exact:
+            add_attr(n, "e")
+        self._exact_attributes = tuple(exact)
+        for n in numeric:
+            add_attr(n, "n")
+        self._numeric_attributes = tuple(numeric)
+        for n in other:
+            add_attr(n, "o")
+        for n in partial:
+            add_attr(n, "p")
+            self.similarity([n], True)
+        self._index = dict()
+
+    def similarity(self, attributes, function=None, weight=None):
+        for a in attributes:
+            if (k := self._attributes.get(a)) is None:
+                raise ValueError(f"No attribute {a} in this UniformMemory")
+            elif k != "p":
+                raise RuntimeError(f"Cannot adjust similarities for attributes that "
+                                   f"were not initially declared partial: {a}")
+            if function is None and weight is None:
+                raise RuntimeError(f"Cannot remove a similarity function for an attribute "
+                                   f"that was initially declared partial: {a}")
+        super().similarity(attributes, function, weight)
+
+    def _ensure_slots(self, slots, learn=False):
+        slots = super()._ensure_slots(slots)
+        for n in slots:
+            if (k := self._attributes.get(n)) is None:
+                raise ValueError(f"Unknown attribute name {n}")
+            elif k == "n" and not isinstance(slots[n], Real):
+                raise ValueError(f"Non-real value {slots[n]} provided for numeric "
+                                 f"attribute {n}")
+        if learn:
+            for n, k in self._attributes.items():
+                if slots.get(n) is None:
+                    if k != "n":
+                        slots[n] = None
+                    else:
+                        raise RuntimeError(f"No value provided for numeric attribute {n}")
+        return slots
+
+    def learn(self, slots, advance=1):
+        result = super().learn(slots, advance)
+        if result is not None:
+            signature = Memory._signature(slots, "learn", self._exact_attributes)
+            umci = self._index.get(signature)
+            if umci is None:
+                umci = UMChunkInfo(len(self._numeric_attributes))
+                self._index[signature] = umci
+            umci._chunks.append(result)
+            for a, i in zip(self._numeric_attributes, count()):
+                umci._numerics[i].append(result[a])
+        return result
+
+
+class UMChunkInfo:
+
+    def __init__(self, numeric_attribute_count):
+        self._chunks = list()
+        self._numerics = list()
+        for _ in range(numeric_attribute_count):
+            self._numerics.append(list())
+
 
 
 # Local variables:
