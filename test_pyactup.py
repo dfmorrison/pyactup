@@ -804,34 +804,34 @@ def test_fixed_noise():
             assert ah[i]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
             assert ah[i + N]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
 
-def test_forget():
-    for m in [Memory(), UniformMemory(exact=["n", "s"])]:
-        assert not m.forget({"n":1}, 0)
-        m.learn({"n":1})
-        m.advance()
-        assert not m.forget({"n":1}, 1)
-        assert len(m) == 1
-        assert m.forget({"n":1}, 0)
-        assert len(m) == 0
-        m.learn({"n":1, "s":"foo"})
-        m.advance()
-        m.learn({"n":2, "s":"bar"})
-        m.advance()
-        m.learn({"n":1, "s":"foo"})
-        m.advance()
-        assert len(m) == 2
-        assert m.forget({"n":1, "s":"foo"}, 1)
-        assert len(m) == 2
-        assert m.forget({"s":"bar", "n":2}, 2)
-        assert len(m) == 1
-        assert m.chunks[0].references == [3]
-        for ol in [True, 1, 2, 1000]:
-            m.reset()
-            m.optimized_learning = ol
-            m.learn({"n":1})
-            m.advance()
-            with pytest.raises(RuntimeError):
-                m.forget({"n": 1}, 0)
+# def test_forget():
+#     for m in [Memory(), UniformMemory(exact=["n", "s"])]:
+#         assert not m.forget({"n":1}, 0)
+#         m.learn({"n":1})
+#         m.advance()
+#         assert not m.forget({"n":1}, 1)
+#         assert len(m) == 1
+#         assert m.forget({"n":1}, 0)
+#         assert len(m) == 0
+#         m.learn({"n":1, "s":"foo"})
+#         m.advance()
+#         m.learn({"n":2, "s":"bar"})
+#         m.advance()
+#         m.learn({"n":1, "s":"foo"})
+#         m.advance()
+#         assert len(m) == 2
+#         assert m.forget({"n":1, "s":"foo"}, 1)
+#         assert len(m) == 2
+#         assert m.forget({"s":"bar", "n":2}, 2)
+#         assert len(m) == 1
+#         assert m.chunks[0].references == [3]
+#         for ol in [True, 1, 2, 1000]:
+#             m.reset()
+#             m.optimized_learning = ol
+#             m.learn({"n":1})
+#             m.advance()
+#             with pytest.raises(RuntimeError):
+#                 m.forget({"n": 1}, 0)
 
 def test_chunks_and_references():
     # We're depending upon chunks being in initial insertion order here; is that really
