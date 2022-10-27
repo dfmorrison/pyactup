@@ -452,6 +452,8 @@ def test_blend():
         m.learn({"a":1, "b":1})
         m.learn({"a":2, "b":2})
         m.advance()
+        print(m)
+        print(m.blend("b", {"a":1}))
         assert isclose(m.blend("b", {"a":1}), 1)
         assert isclose(m.blend("b", {"a":2}), 2)
         assert isclose(m.blend("b"), 1.5)
@@ -618,17 +620,17 @@ def test_best_blend():
 def test_discrete_blend():
     for m in [Memory(temperature=1, noise=0),
               UniformMemory(temperature=1, noise=0, exact=["o", "s"])]:
-        for _ in range(100):
-            for i in range(100):
-                for j in range(100):
+        for _ in range(10):
+            for i in range(10):
+                for j in [0, 1, 2, 3, 3, 4, 5, 6, 7, 5, 8, 5, 9]:
                     m.learn({"o":j, "s":i})
                     m.advance()
-        b, p = m.discrete_blend("o", {"s": 50})
-        assert b == 99
-        assert isclose(dict(p)[64], 0.010001719567347076)
+        b, p = m.discrete_blend("o", {"s": 5})
+        assert b == 5
+        assert isclose(dict(p)[3], 0.1526351150445461)
         b, p = m.discrete_blend("o")
-        assert b == 99
-        assert isclose(dict(p)[64], 0.009996654073373832)
+        assert b == 5
+        assert isclose(dict(p)[4], 0.07519141419785559)
 
 def test_mixed_slots():
     def run_once(d_ret_u=0, d_ret_a=0, d_ret_m=None,
@@ -991,3 +993,35 @@ def test_pickle():
         m.similarity(["n"], lambda x, y: 1 - abs(x - y) / 100, 0.5)
         with pytest.raises(Exception):
             pickle.dumps(m)
+
+def test_uniform_slots():
+    def run_one(exact, partial, numeric, other):
+        exact = exact.split(",") if exact else []
+        partial = partial.split(",") if partial else []
+        numeric = numeric.split(",") if numeric else []
+        other = other.split(",") if other else []
+        for m in [UniformMemory(exact=exact, partial=partial, numeric=numeric,
+                                other=other, temperature=0.4, noise=0),
+                  UniformMemory(partial=partial, numeric=numeric, other=other,
+                                exact=exact, temperature=0.4, noise=0),
+                  UniformMemory(numeric=numeric, other=other, exact=exact,
+                                partial=partial, temperature=0.4, noise=0),
+                  UniformMemory(temperature=0.4, noise=0, other=other, exact=exact,
+                                partial=partial, numeric=numeric),
+                  UniformMemory(other=other, numeric=numeric, temperature=0.4, noise=0,
+                                partial=partial, exact=exact)]:
+            assert m.learn({"e1": None, "e2": "b", "p1": 1, "p2": None, "n1": 3, "n2": 4, "o1": None, "o2": 5}, 1)
+            assert m.learn({"e1": "a", "e2": "b", "p1": 1, "p2": 2, "n1": 13, "n2": 14, "o1": "c", "o2": 5}, 1)
+            assert not m.learn({"e2": "b", "p1": 1, "n1": 3, "n2": 4, "o2": 5}, 1)
+            assert m.retrieve({"e2": "b"})["o1"] is None
+            assert m.retrieve({"e2": "b"})["o2"] == 5
+            assert m.retrieve({"e1": None})["o1"] is None
+            assert m.retrieve({"e1": None})["o2"] == 5
+            assert isclose(m.blend("n1", {"n2": 4}), 3)
+            assert isclose(m.blend("n2", {"e2": "b", "p1": 1}), 5.1859530693301314)
+            assert isclose(m.blend("p1", {}), 1)
+            assert isclose(m.blend("o2", {"e1": None}), 5)
+    run_one("e1,e2", "p1,p2", "n1,n2", "o1,o2")
+    run_one("e1,e2,p1", "", "n1,n2", "o1,o2,p2")
+    run_one("e1,e2,n1,n2", "p1,p2", "", "o1,o2")
+    run_one("", "", "", "e1,e2,p1,p2,n1,n2,o1,o2")

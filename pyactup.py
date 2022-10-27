@@ -720,9 +720,12 @@ class Memory(dict):
     @staticmethod
     def _signature(slots, fname, attributes=None):
         if attributes is not None:
-            slots = {a: slots[a] for a in attributes}
-        if not (result := tuple(sorted(slots.items()))):
-            raise ValueError(f"No attributes provided{' to {fname}()' if fname else ''}")
+            result = tuple(sorted({a: slots[a] for a in attributes}.items()))
+        elif not (result := tuple(sorted(slots.items()))):
+            if fname:
+                raise ValueError(f"No attributes provided to {fname}()")
+            else:
+                raise ValueError(f"No attributes provided")
         return result
 
     def _cite(self, chunk):
@@ -1345,30 +1348,30 @@ class UniformMemory (Memory):
         return True
 
     def _matching_chunks(self, conditions, extra, partial):
-        condition_set = set(conditions)
-        if self._exact_attributes <= condition_set:
-            umci = self._index.get(Memory._signature(conditions, None, self._exact_attributes))
-            if umci is None:
-                return [], None
-            if len(condition_set) == len(self._exact_attributes):
-                return umci._chunks, []
-            if partial and self._mismatch:
-                partial_slots = [(n, conditions[n], self._similarities[n])
-                                 for n in self._partial_slots.intersection(condition_set)]
-            else:
-                partial_slots = []
-            if len(condition_set) == len(self._exact_attributes) + len(partial_slots):
-                return umci._chunks, partial_slots
-            refine_by = condition_set.difference(self._exact_attributes.union(
-                self._partial_slots if self._mismatch else {}))
-            chunks = []
-            for c in umci._chunks:
-                if not all(c[n] == v for n, v in refine_by):
-                    continue
-                chunks.append(c)
-            return chunks, partial_slots
-        else:
-            return super()._matching_chunks(conditions, extra, partial)
+        if self._exact_attributes:
+            condition_set = set(conditions)
+            if self._exact_attributes <= condition_set:
+                umci = self._index.get(Memory._signature(conditions, None, self._exact_attributes))
+                if umci is None:
+                    return [], None
+                if len(condition_set) == len(self._exact_attributes):
+                    return umci._chunks, []
+                if partial and self._mismatch:
+                    partial_slots = [(n, conditions[n], self._similarities[n])
+                                     for n in self._partial_slots.intersection(condition_set)]
+                else:
+                    partial_slots = []
+                if len(condition_set) == len(self._exact_attributes) + len(partial_slots):
+                    return umci._chunks, partial_slots
+                refine_by = condition_set.difference(self._exact_attributes.union(
+                    self._partial_slots if self._mismatch else {}))
+                chunks = []
+                for c in umci._chunks:
+                    if not all(c[n] == conditions[n] for n in refine_by):
+                        continue
+                    chunks.append(c)
+                return chunks, partial_slots
+        return super()._matching_chunks(conditions, extra, partial)
 
 
 
