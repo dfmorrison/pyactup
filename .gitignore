@@ -5,3 +5,5 @@ MANIFEST
 dist
 lisp
 build
+.venv-activation-script
+.pyactup
