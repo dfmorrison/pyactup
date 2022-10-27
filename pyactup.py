@@ -1264,6 +1264,17 @@ class UniformMemory (Memory):
 
     def __init__(self, exact=[], partial=[], numeric=[], other=[], **kwargs):
         super().__init__(**kwargs)
+        def listify(s):
+            if not isinstance(s, str):
+                return s
+            elif "," in s:
+                return [x.strip() for x in s.split(",")]
+            else:
+                return s.split()
+        exact = listify(exact)
+        partial = listify(partial)
+        numeric = listify(numeric)
+        other = listify(other)
         if len(exact) + len(partial) + len(numeric) + len(other) == 0:
             raise RuntimeError("No attributes provided for UniformMemory")
         self._attributes = dict()

@@ -121,7 +121,7 @@ def test_parameter_manipulation():
         m = UniformMemory(exact=[], partial=[], other=tuple(), numeric=set())
 
 def test_time():
-    for m in [Memory(), UniformMemory(exact=["foo"])]:
+    for m in [Memory(), UniformMemory(exact="foo")]:
         assert m.time == 0
         m.advance()
         assert m.time == 1
@@ -160,7 +160,7 @@ def test_time():
             m.advance("cheese Grommit?")
 
 def test_reset():
-    for m in [Memory(), UniformMemory(exact=["species"], numeric=["range"])]:
+    for m in [Memory(), UniformMemory(exact=["species"], numeric="range")]:
         assert m.optimized_learning == False
         assert m.time == 0
         m.learn({"species":"African Swallow", "range":400})
@@ -326,7 +326,7 @@ def test_mismatch():
             m.mismatch = -1
 
 def test_learn_retrieve():
-    for m in [Memory(), UniformMemory(exact=["a", "b"])]:
+    for m in [Memory(), UniformMemory(exact="a, b")]:
         m.learn({"a":1, "b":"x"})
         m.learn({"a":2, "b":"y"})
         m.learn({"a":3, "b":"z"})
@@ -385,7 +385,7 @@ def test_similarity():
         if y < x:
             return sim(y, x)
         return 1 - (y - x) / y
-    for m in [Memory(mismatch=1), UniformMemory(mismatch=1, partial=["a", "b"])]:
+    for m in [Memory(mismatch=1), UniformMemory(mismatch=1, partial="a b")]:
         m.similarity(["a"], sim)
         m.similarity(["b"], True)
         def test_one(x, y, a_len1, a_val, a_len2, b_len1, b_val, b_len2):
@@ -996,10 +996,6 @@ def test_pickle():
 
 def test_uniform_slots():
     def run_one(exact, partial, numeric, other):
-        exact = exact.split(",") if exact else []
-        partial = partial.split(",") if partial else []
-        numeric = numeric.split(",") if numeric else []
-        other = other.split(",") if other else []
         for m in [UniformMemory(exact=exact, partial=partial, numeric=numeric,
                                 other=other, temperature=0.4, noise=0),
                   UniformMemory(partial=partial, numeric=numeric, other=other,
@@ -1021,7 +1017,9 @@ def test_uniform_slots():
             assert isclose(m.blend("n2", {"e2": "b", "p1": 1}), 5.1859530693301314)
             assert isclose(m.blend("p1", {}), 1)
             assert isclose(m.blend("o2", {"e1": None}), 5)
-    run_one("e1,e2", "p1,p2", "n1,n2", "o1,o2")
-    run_one("e1,e2,p1", "", "n1,n2", "o1,o2,p2")
-    run_one("e1,e2,n1,n2", "p1,p2", "", "o1,o2")
+    run_one("e1,e2", "p1,p2", "n1,n2", ["o1", "o2"])
+    run_one(("e1", "e2", "p1"), "", "n1, n2", " o1   ,o2,   p2 ")
+    run_one("e1 e2 n1 n2", "p1 p2", "", "   o1     o2  ")
     run_one("", "", "", "e1,e2,p1,p2,n1,n2,o1,o2")
+    with pytest.raises(ValueError):
+        UniformMemory(exact="a,,b")
