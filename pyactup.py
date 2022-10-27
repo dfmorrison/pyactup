@@ -742,6 +742,19 @@ class Memory(dict):
             chunk._references[-1] = self._time
         chunk._reference_count += 1
 
+    def _forget(self, chunk, signature, when):
+        try:
+            i = np.where(chunk._references == when)[0][0]
+        except IndexError:
+            return False
+        if i < chunk._reference_count:
+            chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
+        chunk._reference_count -= 1
+        if not chunk._reference_count:
+            self._slot_name_index[frozenset(chunk.keys())].remove(chunk)
+            del self[signature]
+        return True
+
     def forget(self, slots, when):
         """Undoes the operation of a previous call to :meth:`learn`.
 
@@ -759,22 +772,12 @@ class Memory(dict):
         """
         if self._optimized_learning is not None:
             raise RuntimeError("The forget() method cannot be used with optimized learning")
-        slots = self._ensure_slots(slots)
+        slots = self._ensure_slots(slots, True)
         signature = Memory._signature(slots, "forget")
         chunk = self.get(signature)
         if not chunk:
             return False
-        try:
-            i = np.where(chunk._references == when)[0][0]
-        except IndexError:
-            return False
-        if i < chunk._reference_count:
-            chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
-        chunk._reference_count -= 1
-        if not chunk._reference_count:
-            self._slot_name_index[frozenset(chunk.keys())].remove(chunk)
-            del self[signature]
-        return True
+        return self._forget(chunk, signature, when)
 
     def _matching_chunks(self, conditions, extra, partial):
         slot_names = conditions.keys()
@@ -1281,6 +1284,9 @@ class UniformMemory (Memory):
         self._easy_match_slots = self._exact_attributes.union(self._partial_slots)
         self._index = dict()
 
+    def __repr__(self):
+        return f"<UniformMemory {id(self)}: {list(self._attributes)}, {len(self)}, {self._time}>"
+
     def similarity(self, attributes, function=None, weight=None):
         for a in attributes:
             if (k := self._attributes.get(a)) is None:
@@ -1302,18 +1308,19 @@ class UniformMemory (Memory):
                 raise ValueError(f"Non-real value {slots[n]} provided for numeric "
                                  f"attribute {n}")
         if learn:
-            for n, k in self._attributes.items():
-                if slots.get(n) is None:
-                    if k != "n":
-                        slots[n] = None
-                    else:
-                        raise RuntimeError(f"No value provided for numeric attribute {n}")
+            if len(slots) < len(self._attributes):
+                for n, k in self._attributes.items():
+                    if slots.get(n) is None:
+                        if k != "n":
+                            slots[n] = None
+                        else:
+                            raise RuntimeError(f"No value provided for numeric attribute {n}")
         return slots
 
     def learn(self, slots, advance=None):
         result = super().learn(slots, advance)
         if result is not None:
-            signature = Memory._signature(slots, "learn", self._exact_attributes)
+            signature = Memory._signature(result, "learn", self._exact_attributes)
             umci = self._index.get(signature)
             if umci is None:
                 umci = UMChunkInfo(len(self._numeric_attributes))
@@ -1323,7 +1330,19 @@ class UniformMemory (Memory):
                 umci._numerics[i].append(result[a])
         return result
 
-    # TODO implement forget(); remember that the UMChunkInfo needs to be removed if it goes empty
+    def _forget(self, chunk, signature, when):
+        if not super()._forget(chunk, signature, when):
+            return False
+        if not chunk._reference_count:
+            isig = Memory._signature(chunk, "forget", self._exact_attributes)
+            umci = self._index[isig]
+            i = umci._chunks.index(chunk)
+            del umci._chunks[i]
+            for sublist in umci._numerics:
+                del sublist[i]
+            if not umci._chunks:
+                del self._index[isig]
+        return True
 
     def _matching_chunks(self, conditions, extra, partial):
         condition_set = set(conditions)

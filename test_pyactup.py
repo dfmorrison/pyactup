@@ -723,38 +723,49 @@ def test_mixed_slots():
             assert isclose(ah[-1]["activation"], c_best_a)
             assert mp is c_best_m or isclose(mp, c_best_m)
 
-    m = Memory(temperature=1, noise=0)
-    run_once(10, -0.3465735902799726, None,
-             50, 0, None,
-             36.31698208548453, -0.3465735902799726, None,
-             25.85786437626905, 0, None,
-             None, None, None,
-             "B", 50, 0, None,
-             "B", 100, -0.5493061443340549, None)
-    m.mismatch = 1
-    run_once(10, -0.3465735902799726, None,
-             50, 0, None,
-             36.31698208548453, -0.3465735902799726, None,
-             25.85786437626905, 0, None,
-             None, None, None,
-             "B", 50, 0, None,
-             "B", 100, -0.5493061443340549, None)
-    m.similarity(["color"], True)
-    run_once(10, -0.3465735902799726, None,
-             50, 0, 0,
-             36.31698208548453, -0.3465735902799726, None,
-             32.366410445083744, 0, 0,
-             None, None, None,
-             "B", 50, 0, None,
-             "B", 56.669062843109664, -1, -1)
-    m.similarity(["size"], lambda x, y: 1 - abs(x - y) / 4)
-    run_once(10, -0.3465735902799726, None,
-             50, 0, 0,
-             36.31698208548453, -0.3465735902799726, None,
-             32.366410445083744, 0, 0,
-             38.406038686568394, -0.25, -0.25,
-             "B", 50, 0, None,
-             "B", 56.669062843109664, -1, -1)
+    for m in [Memory(temperature=1, noise=0),
+              UniformMemory(temperature=1, noise=0,
+                            exact="decision size color".split(), numeric=["utility"])]:
+        run_once(10, -0.3465735902799726, None,
+                 50, 0, None,
+                 36.31698208548453, -0.3465735902799726, None,
+                 25.85786437626905, 0, None,
+                 None, None, None,
+                 "B", 50, 0, None,
+                 "B", 100, -0.5493061443340549, None)
+        m.mismatch = 1
+        run_once(10, -0.3465735902799726, None,
+                 50, 0, None,
+                 36.31698208548453, -0.3465735902799726, None,
+                 25.85786437626905, 0, None,
+                 None, None, None,
+                 "B", 50, 0, None,
+                 "B", 100, -0.5493061443340549, None)
+    for m in [Memory(temperature=1, noise=0),
+              UniformMemory(temperature=1, noise=0,
+                            exact=["decision", "size"], numeric=["utility"], partial=["color"])]:
+        m.mismatch = 1
+        m.similarity(["color"], True)
+        run_once(10, -0.3465735902799726, None,
+                 50, 0, 0,
+                 36.31698208548453, -0.3465735902799726, None,
+                 32.366410445083744, 0, 0,
+                 None, None, None,
+                 "B", 50, 0, None,
+                 "B", 56.669062843109664, -1, -1)
+    for m in [Memory(temperature=1, noise=0),
+              UniformMemory(temperature=1, noise=0,
+                            exact=["decision"], numeric=["utility"], partial=["color", "size"])]:
+        m.mismatch = 1
+        m.similarity(["color"], True)
+        m.similarity(["size"], lambda x, y: 1 - abs(x - y) / 4)
+        run_once(10, -0.3465735902799726, None,
+                 50, 0, 0,
+                 36.31698208548453, -0.3465735902799726, None,
+                 32.366410445083744, 0, 0,
+                 38.406038686568394, -0.25, -0.25,
+                 "B", 50, 0, None,
+                 "B", 56.669062843109664, -1, -1)
 
 def test_fixed_noise():
     N = 300
@@ -792,33 +803,33 @@ def test_fixed_noise():
             assert ah[i + N]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
 
 def test_forget():
-    m = Memory()
-    assert not m.forget({"n":1}, 0)
-    m.learn({"n":1})
-    m.advance()
-    assert not m.forget({"n":1}, 1)
-    assert len(m) == 1
-    assert m.forget({"n":1}, 0)
-    assert len(m) == 0
-    m.learn({"n":1, "s":"foo"})
-    m.advance()
-    m.learn({"n":2, "s":"bar"})
-    m.advance()
-    m.learn({"n":1, "s":"foo"})
-    m.advance()
-    assert len(m) == 2
-    assert m.forget({"n":1, "s":"foo"}, 1)
-    assert len(m) == 2
-    assert m.forget({"s":"bar", "n":2}, 2)
-    assert len(m) == 1
-    assert m.chunks[0].references == [3]
-    for ol in [True, 1, 2, 1000]:
-        m.reset()
-        m.optimized_learning = ol
+    for m in [Memory(), UniformMemory(exact=["n", "s"])]:
+        assert not m.forget({"n":1}, 0)
         m.learn({"n":1})
         m.advance()
-        with pytest.raises(RuntimeError):
-            m.forget({"n": 1}, 0)
+        assert not m.forget({"n":1}, 1)
+        assert len(m) == 1
+        assert m.forget({"n":1}, 0)
+        assert len(m) == 0
+        m.learn({"n":1, "s":"foo"})
+        m.advance()
+        m.learn({"n":2, "s":"bar"})
+        m.advance()
+        m.learn({"n":1, "s":"foo"})
+        m.advance()
+        assert len(m) == 2
+        assert m.forget({"n":1, "s":"foo"}, 1)
+        assert len(m) == 2
+        assert m.forget({"s":"bar", "n":2}, 2)
+        assert len(m) == 1
+        assert m.chunks[0].references == [3]
+        for ol in [True, 1, 2, 1000]:
+            m.reset()
+            m.optimized_learning = ol
+            m.learn({"n":1})
+            m.advance()
+            with pytest.raises(RuntimeError):
+                m.forget({"n": 1}, 0)
 
 def test_chunks_and_references():
     # We're depending upon chunks being in initial insertion order here; is that really
