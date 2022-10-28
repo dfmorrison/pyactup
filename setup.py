@@ -1,3 +1,5 @@
+# Copyright 2018-2022 Carnegie Mellon University
+
 from setuptools import setup
 from pyactup import __version__
 
@@ -13,7 +15,11 @@ setup(name="pyactup",
       long_description=DESCRIPTION,
       long_description_content_type="text/markdown",
       py_modules=["pyactup"],
-      install_requires=["numpy", "pylru", "prettytable"],
+      install_requires=[
+          "numpy",
+          "pylru",
+          "prettytable",
+          "packaging"],
       tests_require=["pytest"],
       python_requires=">=3.8",
       classifiers=["Intended Audience :: Science/Research",
