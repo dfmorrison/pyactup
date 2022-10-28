@@ -999,6 +999,7 @@ def test_pickle():
 
 def test_index():
     m = Memory(index="a b")
+    assert set(m.index) == {"a", "b"}
     c = m.learn({"a": 0})
     assert len(c) == 2 and c["b"] is None
     m = Memory()
@@ -1006,25 +1007,37 @@ def test_index():
     assert len(c) == 1 and c.get("b") is None
     with pytest.raises(KeyError):
         c["b"]
-    entries = [(random.randint(0, 200),
-                random.randint(0, 200))
-               for _ in range(1_000_000)]
+    m = Memory(index="a b")
+    m.learn({"a": 0})
+    with pytest.raises(RuntimeError):
+        m.index = "a"
+    m.index = "b,a"
+    m.reset()
+    assert set(m.index) == {"a", "b"}
+    m.index = "a"
+    assert m.index == ["a"]
+    m = Memory()
+    assert m.index == []
+    m.index = "a b c"
+    assert set(m.index) == {"a", "b", "c"}
+    entries = [(random.randint(0, 150),
+                random.randint(0, 150))
+               for _ in range(100_000)]
     random.shuffle(entries)
     keys = list(range(0, 200))
     random.shuffle(keys)
-    keys = keys[:50]
+    keys = keys[:10]
     m = Memory()
-    for d, u in entries:
-        m.learn({"d": d, "u": u}, 1)
-    start = default_timer()
-    for k in keys:
-        m.blend("u", {"d": k})
-    no_index = default_timer() - start
+    def f():
+        for d, u in entries:
+            m.learn({"d": d, "u": u}, 1)
+        start = default_timer()
+        for k in keys:
+            m.blend("u", {"d": k})
+        return default_timer() - start
+    no_index = f()
+    m.reset()
+    m.index = "d"
+    assert f() < no_index / 4
     m = Memory(index="d")
-    for d, u in entries:
-        m.learn({"d": d, "u": u}, 1)
-    start = default_timer()
-    for k in keys:
-        m.blend("u", {"d": k})
-    with_index = default_timer() - start
-    assert with_index < no_index / 4
+    assert f() < no_index / 4

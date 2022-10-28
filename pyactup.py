@@ -97,25 +97,28 @@ class Memory(dict):
     necessary to raise Python's recursion limit with
     `sys.setrecusionlimit <https://docs.python.org/3.8/library/sys.html#sys.setrecursionlimit>`_.
 
-    A common use case for PyACTUp involves all of the chunks in a ``Memory`` having
-    the same attributes, and some of those attributes are always used, by matching
-    exactly, not partially, some of those attributes. The ``index``keyword argument
-    declares that such a set of attributes is present, and can result in significant
-    performance improvements for models with a *very* large number of chunks. The value
-    of this keyword argument should be a list of attribute names. As a convenience, if
-    none of the attribute names contains commas or spaces, a string maybe used instead
-    of a list, the attribute names being separated by spaces or commas; either spaces or
-    commas must be used, not a mixture. For example, both ``index="decision utility"`` and
-    ``index="decision,utiliy"`` are equivalent to ``index=["decision", "utility"]``. The
-    ``index`` cannot be changed after the ``Memory`` is created. All chunks in a
-    ``Memory`` with an *index* must contain values for all the attributes listed in the
-    *index*; if any are omitted in the argument to :meth:`learn` they will be
-    automatically added with a value of ``None``.
+    A common use case for PyACTUp involves all of the chunks in a ``Memory`` having the
+    same attributes, and some of those attributes are always used, by matching exactly,
+    not partially, some of those attributes. The ``index``keyword argument declares that
+    such a set of attributes is present, and can result in significant performance
+    improvements for models with a *very* large number of chunks. The value of this
+    keyword argument should be a list of attribute names. As a convenience, if none of the
+    attribute names contains commas or spaces, a string maybe used instead of a list, the
+    attribute names being separated by spaces or commas; either spaces or commas must be
+    used, not a mixture. For example, both ``index="decision utility"`` and
+    ``index="decision,utiliy"`` are equivalent to ``index=["decision", "utility"]``. A
+    list of he attributes in a :class:`Memory`'s *index* can be retrieved with the
+    :attr:`index` property. If the ``Memory`` is empty, containing no chunks, the *index*
+    can be modified by setting that property, but otherwise the *index* cannot be changed
+    after the ``Memory`` was created. `All chunks in a ``Memory`` with an *index* must
+    contain values for all the attributes listed in the *index*; if any are omitted in the
+    argument to :meth:`learn` they will be automatically added with a value of ``None``.
 
     If, when creating a ``Memory`` object, any of the various parameters have unsupported
     values an :exc:`Exception` will be raised. See the documentation for the various
     properties that can be used for setting these parameters for further details about
     what values are or are not supported.
+
     """
 
     def __init__(self,
@@ -149,13 +152,11 @@ class Memory(dict):
         self.mismatch = mismatch
         self.optimized_learning = optimized_learning
         self.use_actr_similarity = use_actr_similarity
-        index = Memory._listify(index)
-        for a in index:
-            Memory._ensure_slot_name(a)
-        self._indexed_attributes = set(index)
-        self._index = defaultdict(list)
-        self._activation_history = None
         self._slot_name_index = defaultdict(list)
+        self._indexed_attributes = set()
+        self._index = defaultdict(list)
+        self.index = index
+        self._activation_history = None
         # Initialize the noise RNG from the parent Python RNG, in case the latter gets seeded for determinancy.
         self._rng = np.random.default_rng([random.randint(0, MAXIMUM_RANDOM_SEED) for i in range(16)])
         self.reset()
@@ -272,8 +273,30 @@ class Memory(dict):
             self._fixed_noise_time = self._time
 
     @property
+    def index(self):
+        """A list of the attribute names in this ``Memory``'s index.
+        If this :class:`Memory` is empty, containing no chunks, this can also be set,
+        using the same syntax as in the :class:`Memory` constructor. However, if
+        this ``Memory`` contains chunks and attempt to set the ``index`` will raise
+        a :exc:`RuntimeError`.
+        """
+        return list(self._indexed_attributes)
+
+    @index.setter
+    def index(self, value):
+        index = set(Memory._listify(value))
+        for a in index:
+            Memory._ensure_slot_name(a)
+        if index == self._indexed_attributes:
+            return
+        if self:
+            raise RuntimeError("Cannot set the index of a Memory after it contains chunks")
+        assert not self._index and not self._slot_name_index
+        self._indexed_attributes = index
+
+    @property
     def time(self):
-        """This Memory's current time.
+        """This ``Memory``'s current time.
         Time in PyACTUp is a dimensionless quantity, the interpretation of which is at the
         discretion of the modeler.
         """
