@@ -381,7 +381,7 @@ def test_similarity():
         return 1 - (y - x) / y
     m = Memory(mismatch=1)
     m.similarity(["a"], sim)
-    m.similarity(["b"], True)
+    m.similarity("b", True)
     def test_one(x, y, a_len1, a_val, a_len2, b_len1, b_val, b_len2):
         a = m._similarities.get("a")
         b = m._similarities.get("b")
@@ -400,15 +400,19 @@ def test_similarity():
     test_one(3, 3, 0, 0, 0, 0, 0, 0)
     test_one(3, 4, 0, -0.25, 2, 0, -1, 0)
     test_one(4, 3, 2, -0.25, 2, 0, -1, 0)
-    m.similarity(["a"], weight=2)
+    m.similarity("a", weight=2)
     m.similarity(["b"], weight=10)
     test_one(4, 3, 0, -0.50, 2, 0, -10, 0)
     m.similarity(["b"])
     assert m._similarities.get("b") is None
     m.use_actr_similarity = True
-    m.similarity(["b"], weight=20)
+    m.similarity("b d f", weight=20)
     m.similarity(["a"], lambda x, y: sim(x, y) - 1, 4)
     test_one(3, 4, 0, -1, 2, 0, -20, 0)
+    with pytest.raises(ValueError):
+        m.similarity("a,b,c,d,b,f,g", True)
+    with pytest.raises(ValueError):
+        m.similarity("a,b,c,d,b,f,g")
 
 def test_retrieve_partial():
     def sim(x, y):
