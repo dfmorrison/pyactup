@@ -7,326 +7,319 @@ import math
 import numpy as np
 import pickle
 import pytest
+import random
 import sys
 
 from math import isclose
 from pprint import pprint
+from timeit import default_timer
 
 def test_parameter_manipulation():
-    for uniform in [False, True]:
-        m = UniformMemory(exact=["x"]) if uniform else Memory()
-        assert m.noise == 0.25
-        assert m.decay == 0.5
-        assert m.temperature is None
-        assert isclose(m._temperature, 0.3535534, rel_tol=0.0001)
-        assert m.threshold is None
-        assert m.mismatch is None
-        assert m.optimized_learning == False
-        m.temperature = False
-        assert m.temperature is None
-        assert isclose(m._temperature, 0.3535534, rel_tol=0.0001)
-        m.noise = 0.35
-        m.decay = 0.6
-        m.temperature = 0.7
-        m.threshold = -8
-        m.mismatch = 1
-        m.optimized_learning = 4
-        assert m.noise == 0.35
-        assert m.decay == 0.6
-        assert m.temperature == 0.7
-        assert m._temperature == 0.7
-        assert m.threshold == -8
-        assert m.mismatch == 1.0
-        assert m.optimized_learning == 4
-        if not uniform:
-            m = Memory(0.15, 0.4, 1.1, -9, 0, True)
-            assert m.noise == 0.15
-            assert m.decay == 0.4
-            assert m.temperature == 1.1
-            assert m._temperature == 1.1
-            assert m.threshold == -9
-            assert m.mismatch == 0.0
-            assert m.optimized_learning == True
-            with pytest.raises(ValueError):
-                m.temperature = 0
-            assert m.temperature == 1.1
-            assert m._temperature == 1.1
-            with pytest.raises(ValueError):
-                m.noise = -1
-            assert m.noise == 0.15
-            with pytest.raises(ValueError):
-                m.decay = -0.5
-            assert m.decay == 0.4
-            m.optimized_learning = True
-            assert m.optimized_learning == True
-            m.optimized_learning = False
-            assert m.optimized_learning == False
-            m.optimized_learning = 0
-            assert m.optimized_learning == True
-            m.optimized_learning = None
-            assert m.optimized_learning == False
-            m.optimized_learning = 1
-            assert m.optimized_learning == 1
-            m.optimized_learning = 1000
-            assert m.optimized_learning == 1000
-            with pytest.raises(ValueError):
-                m.mismatch = -0.1
-            assert m.mismatch == 0.0
-            with pytest.warns(UserWarning):
-                m = Memory(noise=0)
-        m = UniformMemory(exact=["x"], decay=5) if uniform else Memory(decay=5)
-        with pytest.raises(ValueError):
-            m.optimized_learning = True
-        with pytest.raises(ValueError):
-            m.optimized_learning = 1
-        m = Memory(optimized_learning=True)
-        with pytest.raises(ValueError):
-            m.decay = 1
-        m = Memory(optimized_learning=4)
-        with pytest.raises(ValueError):
-            m.decay = 1
-        with pytest.raises(ValueError):
-            m.optimized_learning = 0.5
-        with pytest.raises(ValueError):
-            m = Memory(decay=5, optimized_learning=True)
-        m = UniformMemory(exact=["foo"]) if uniform else Memory()
-        m.learn({"foo": "bar"})
-        with pytest.raises(RuntimeError):
-            m.optimized_learning = True
-        with pytest.raises(RuntimeError):
-            m.optimized_learning = 1
-        m = (UniformMemory(optimized_learning=True, exact=["foo"]) if uniform
-             else Memory(optimized_learning=True))
-        m.learn({"foo": "bar"})
-        with pytest.raises(RuntimeError):
-            m.optimized_learning = False
-        m = Memory(optimized_learning=1)
-        m.learn({"foo": "bar"})
-        with pytest.raises(RuntimeError):
-            m.optimized_learning = False
-        assert m.use_actr_similarity is False
-        m.use_actr_similarity = True
-        assert m.use_actr_similarity is True
-        m.use_actr_similarity = 0
-        assert m.use_actr_similarity is False
-        m.use_actr_similarity = "yup"
-        assert m.use_actr_similarity is True
-        if uniform:
-            assert UniformMemory(use_actr_similarity=1, exact=["x"]).use_actr_similarity is True
-        else:
-            assert Memory(use_actr_similarity=1).use_actr_similarity is True
+    m = Memory()
+    assert m.noise == 0.25
+    assert m.decay == 0.5
+    assert m.temperature is None
+    assert isclose(m._temperature, 0.3535534, rel_tol=0.0001)
+    assert m.threshold is None
+    assert m.mismatch is None
+    assert m.optimized_learning == False
+    m.temperature = False
+    assert m.temperature is None
+    assert isclose(m._temperature, 0.3535534, rel_tol=0.0001)
+    m.noise = 0.35
+    m.decay = 0.6
+    m.temperature = 0.7
+    m.threshold = -8
+    m.mismatch = 1
+    m.optimized_learning = 4
+    assert m.noise == 0.35
+    assert m.decay == 0.6
+    assert m.temperature == 0.7
+    assert m._temperature == 0.7
+    assert m.threshold == -8
+    assert m.mismatch == 1.0
+    assert m.optimized_learning == 4
+    m = Memory(0.15, 0.4, 1.1, -9, 0, True)
+    assert m.noise == 0.15
+    assert m.decay == 0.4
+    assert m.temperature == 1.1
+    assert m._temperature == 1.1
+    assert m.threshold == -9
+    assert m.mismatch == 0.0
+    assert m.optimized_learning == True
+    with pytest.raises(ValueError):
+        m.temperature = 0
+    assert m.temperature == 1.1
+    assert m._temperature == 1.1
+    with pytest.raises(ValueError):
+        m.noise = -1
+    assert m.noise == 0.15
+    with pytest.raises(ValueError):
+        m.decay = -0.5
+    assert m.decay == 0.4
+    m.optimized_learning = True
+    assert m.optimized_learning == True
+    m.optimized_learning = False
+    assert m.optimized_learning == False
+    m.optimized_learning = 0
+    assert m.optimized_learning == True
+    m.optimized_learning = None
+    assert m.optimized_learning == False
+    m.optimized_learning = 1
+    assert m.optimized_learning == 1
+    m.optimized_learning = 1000
+    assert m.optimized_learning == 1000
+    with pytest.raises(ValueError):
+        m.mismatch = -0.1
+    assert m.mismatch == 0.0
+    with pytest.warns(UserWarning):
+        m = Memory(noise=0)
+    m = Memory(decay=5)
+    with pytest.raises(ValueError):
+        m.optimized_learning = True
+    with pytest.raises(ValueError):
+        m.optimized_learning = 1
+    m = Memory(optimized_learning=True)
+    with pytest.raises(ValueError):
+        m.decay = 1
+    m = Memory(optimized_learning=4)
+    with pytest.raises(ValueError):
+        m.decay = 1
+    with pytest.raises(ValueError):
+        m.optimized_learning = 0.5
+    with pytest.raises(ValueError):
+        m = Memory(decay=5, optimized_learning=True)
+    m = Memory()
+    m.learn({"foo": "bar"})
     with pytest.raises(RuntimeError):
-        m = UniformMemory()
+        m.optimized_learning = True
     with pytest.raises(RuntimeError):
-        m = UniformMemory(exact=[], partial=[], other=tuple(), numeric=set())
+        m.optimized_learning = 1
+    m = Memory(optimized_learning=True)
+    m.learn({"foo": "bar"})
+    with pytest.raises(RuntimeError):
+        m.optimized_learning = False
+    m = Memory(optimized_learning=1)
+    m.learn({"foo": "bar"})
+    with pytest.raises(RuntimeError):
+        m.optimized_learning = False
+    assert m.use_actr_similarity is False
+    m.use_actr_similarity = True
+    assert m.use_actr_similarity is True
+    m.use_actr_similarity = 0
+    assert m.use_actr_similarity is False
+    m.use_actr_similarity = "yup"
+    assert m.use_actr_similarity is True
+    assert Memory(use_actr_similarity=1).use_actr_similarity is True
 
 def test_time():
-    for m in [Memory(), UniformMemory(exact="foo")]:
-        assert m.time == 0
-        m.advance()
-        assert m.time == 1
-        m.advance(12.5)
-        assert isclose(m.time, 13.5)
-        assert isclose(m.time, 13.5)
-        m.reset()
-        m.learn({"foo":1})
-        assert m.time == 0
-        m.advance()
-        assert m.time == 1
-        m.retrieve({"foo":3})
-        assert m.time == 1
+    m = Memory()
+    assert m.time == 0
+    m.advance()
+    assert m.time == 1
+    m.advance(12.5)
+    assert isclose(m.time, 13.5)
+    assert isclose(m.time, 13.5)
+    m.reset()
+    m.learn({"foo":1})
+    assert m.time == 0
+    m.advance()
+    assert m.time == 1
+    m.retrieve({"foo":3})
+    assert m.time == 1
+    m.blend("foo")
+    assert m.time == 1
+    m.learn({"foo":2})
+    with pytest.raises(RuntimeError):
+        m.retrieve()
+    with pytest.raises(RuntimeError):
         m.blend("foo")
-        assert m.time == 1
-        m.learn({"foo":2})
-        with pytest.raises(RuntimeError):
-            m.retrieve()
-        with pytest.raises(RuntimeError):
-            m.blend("foo")
-        m.learn({"foo":3}, advance=True)
-        assert m.time == 2
-        m.learn({"foo":3}, advance=17)
-        assert m.time == 19
-        m.advance(-1)
-        assert m.time == 18
-        m.advance(-1)
-        assert m.time == 17
-        m.learn({"foo":4}, advance=-1)
-        assert m.time == 16
-        m.advance(-0.01)
-        assert isclose(m.time, 15.99)
-        m.learn({"foo":5}, advance=-0.1)
-        assert isclose(m.time, 15.89)
-        with pytest.raises(Exception):
-            m.advance("cheese Grommit?")
+    m.learn({"foo":3}, advance=True)
+    assert m.time == 2
+    m.learn({"foo":3}, advance=17)
+    assert m.time == 19
+    m.advance(-1)
+    assert m.time == 18
+    m.advance(-1)
+    assert m.time == 17
+    m.learn({"foo":4}, advance=-1)
+    assert m.time == 16
+    m.advance(-0.01)
+    assert isclose(m.time, 15.99)
+    m.learn({"foo":5}, advance=-0.1)
+    assert isclose(m.time, 15.89)
+    with pytest.raises(Exception):
+        m.advance("cheese Grommit?")
 
 def test_reset():
-    for m in [Memory(), UniformMemory(exact=["species"], numeric="range")]:
-        assert m.optimized_learning == False
-        assert m.time == 0
-        m.learn({"species":"African Swallow", "range":400})
-        assert len(m) == 1
-        assert m.time == 0
-        m.learn({"species":"European Swallow", "range":300})
-        assert len(m) == 2
-        assert m.time == 0
-        m.learn({"species":"African Swallow", "range":400})
-        assert len(m) == 2
-        assert m.time == 0
-        m.reset()
-        assert m.time == 0
-        m.advance(2.5)
-        assert m.optimized_learning == False
-        assert len(m) == 0
-        assert m.time == 2.5
-        m.reset()
-        assert m.optimized_learning == False
-        assert len(m) == 0
-        assert m.time == 0
-        m.optimized_learning = 4
-        m.reset()
-        assert m.optimized_learning == 4
-        assert len(m) == 0
-        assert m.time == 0
-        m.learn({"species":"African Swallow", "range":400})
-        assert len(m) == 1
-        assert m.time == 0
-        m.learn({"species":"European Swallow", "range":300})
-        m.advance()
-        assert len(m) == 2
-        assert m.time == 1
-        m.learn({"species":"African Swallow", "range":400})
-        m.advance()
-        assert len(m) == 2
-        assert m.time == 2
-        m.reset()
-        assert m.optimized_learning == 4
-        assert len(m) == 0
-        assert m.time == 0
-        m.optimized_learning = False
-        m.learn({"species":"African Swallow", "range":400})
-        m.learn({"species":"European Swallow", "range":300})
-        m.advance()
-        m.learn({"species":"Python", "range":300})
-        assert len(m) == 3
-        assert m.time == 1
+    m = Memory()
+    assert m.optimized_learning == False
+    assert m.time == 0
+    m.learn({"species":"African Swallow", "range":400})
+    assert len(m) == 1
+    assert m.time == 0
+    m.learn({"species":"European Swallow", "range":300})
+    assert len(m) == 2
+    assert m.time == 0
+    m.learn({"species":"African Swallow", "range":400})
+    assert len(m) == 2
+    assert m.time == 0
+    m.reset()
+    assert m.time == 0
+    m.advance(2.5)
+    assert m.optimized_learning == False
+    assert len(m) == 0
+    assert m.time == 2.5
+    m.reset()
+    assert m.optimized_learning == False
+    assert len(m) == 0
+    assert m.time == 0
+    m.optimized_learning = 4
+    m.reset()
+    assert m.optimized_learning == 4
+    assert len(m) == 0
+    assert m.time == 0
+    m.learn({"species":"African Swallow", "range":400})
+    assert len(m) == 1
+    assert m.time == 0
+    m.learn({"species":"European Swallow", "range":300})
+    m.advance()
+    assert len(m) == 2
+    assert m.time == 1
+    m.learn({"species":"African Swallow", "range":400})
+    m.advance()
+    assert len(m) == 2
+    assert m.time == 2
+    m.reset()
+    assert m.optimized_learning == 4
+    assert len(m) == 0
+    assert m.time == 0
+    m.optimized_learning = False
+    m.learn({"species":"African Swallow", "range":400})
+    m.learn({"species":"European Swallow", "range":300})
+    m.advance()
+    m.learn({"species":"Python", "range":300})
+    assert len(m) == 3
+    assert m.time == 1
 
 def test_noise():
-    for m in [Memory(), UniformMemory(exact=["x"])]:
-        assert isclose(m.noise, 0.25)
-        with pytest.warns(UserWarning):
-            m.noise = 0
-        assert m.noise == 0
-        m.noise = 1
-        assert isclose(m.noise, 1)
-        with pytest.raises(ValueError):
-            m.noise = -1
+    m = Memory()
+    assert isclose(m.noise, 0.25)
+    with pytest.warns(UserWarning):
+        m.noise = 0
+    assert m.noise == 0
+    m.noise = 1
+    assert isclose(m.noise, 1)
+    with pytest.raises(ValueError):
+        m.noise = -1
 
 def test_temperature():
-    for m in [Memory(), UniformMemory(exact=["x"])]:
-        assert m.temperature is None
-        m.temperature = 1
-        assert isclose(m.temperature, 1)
+    m = Memory()
+    assert m.temperature is None
+    m.temperature = 1
+    assert isclose(m.temperature, 1)
+    m.temperature = None
+    assert m.temperature is None
+    m.temperature = False
+    assert m.temperature is None
+    with pytest.raises(ValueError):
+        m.temperature = 0
+    with pytest.raises(ValueError):
+        m.temperature = -1
+    with pytest.raises(ValueError):
+        m.temperature = 0.0001
+    m.temperature = 1
+    m.noise = 0
+    with pytest.raises(ValueError):
         m.temperature = None
-        assert m.temperature is None
-        m.temperature = False
-        assert m.temperature is None
-        with pytest.raises(ValueError):
-            m.temperature = 0
-        with pytest.raises(ValueError):
-            m.temperature = -1
-        with pytest.raises(ValueError):
-            m.temperature = 0.0001
-        m.temperature = 1
-        m.noise = 0
-        with pytest.raises(ValueError):
-            m.temperature = None
-        m.noise = 0.0001
-        with pytest.raises(ValueError):
-            m.temperature = None
+    m.noise = 0.0001
+    with pytest.raises(ValueError):
+        m.temperature = None
 
 def test_decay():
-    for m in [Memory(), UniformMemory(exact=["foo"])]:
-        assert isclose(m.decay, 0.5)
-        m.decay = 0
-        assert m.decay == 0
+    m = Memory()
+    assert isclose(m.decay, 0.5)
+    m.decay = 0
+    assert m.decay == 0
+    m.decay = 1
+    assert isclose(m.decay, 1)
+    with pytest.raises(ValueError):
+        m.decay = -1
+    m.decay = 0.435
+    assert isclose(m.decay, 0.435)
+    m.reset()
+    m.optimized_learning = True
+    with pytest.raises(ValueError):
         m.decay = 1
-        assert isclose(m.decay, 1)
-        with pytest.raises(ValueError):
-            m.decay = -1
-        m.decay = 0.435
-        assert isclose(m.decay, 0.435)
-        m.reset()
+    with pytest.raises(ValueError):
+        m.decay = 3.14159265359
+    m.optimized_learning = False
+    m.decay = 1
+    with pytest.raises(ValueError):
         m.optimized_learning = True
-        with pytest.raises(ValueError):
-            m.decay = 1
-        with pytest.raises(ValueError):
-            m.decay = 3.14159265359
-        m.optimized_learning = False
-        m.decay = 1
-        with pytest.raises(ValueError):
-            m.optimized_learning = True
-        m.decay = 2.7182818
-        with pytest.raises(ValueError):
-            m.optimized_learning = True
-        m.reset()
-        m.temperature = 1
-        m.noise = 0
-        m.decay = 0
-        m.learn({"foo":1}, advance=3)
-        assert m.time == 3
-        m.learn({"foo":1})
-        m.advance(7)
-        c = m.retrieve({"foo":1})
-        assert isclose(m._activations({})[0][0], 0.6931471805599453)
-        m.decay = None
-        assert isclose(m._activations({})[0][0], 0.0)
-        m.decay = 0.8
-        assert isclose(m._activations({})[0][0], -0.9961078949810501)
-        m.reset()
-        m.learn({"foo":1})
-        m.advance(4)
-        m.learn({"foo":1})
-        m.advance(7)
-        c = m.retrieve({"foo":1})
-        m.decay = None
-        assert isclose(m._activations({})[0][0], 0.0)
-        m.decay = 0
-        assert isclose(m._activations({})[0][0], 0.6931471805599453)
+    m.decay = 2.7182818
+    with pytest.raises(ValueError):
+        m.optimized_learning = True
+    m.reset()
+    m.temperature = 1
+    m.noise = 0
+    m.decay = 0
+    m.learn({"foo":1}, advance=3)
+    assert m.time == 3
+    m.learn({"foo":1})
+    m.advance(7)
+    c = m.retrieve({"foo":1})
+    assert isclose(m._activations({})[0][0], 0.6931471805599453)
+    m.decay = None
+    assert isclose(m._activations({})[0][0], 0.0)
+    m.decay = 0.8
+    assert isclose(m._activations({})[0][0], -0.9961078949810501)
+    m.reset()
+    m.learn({"foo":1})
+    m.advance(4)
+    m.learn({"foo":1})
+    m.advance(7)
+    c = m.retrieve({"foo":1})
+    m.decay = None
+    assert isclose(m._activations({})[0][0], 0.0)
+    m.decay = 0
+    assert isclose(m._activations({})[0][0], 0.6931471805599453)
 
 def test_threshold():
-    for m in [Memory(), UniformMemory(exact=["cheese"])]:
-        assert m.threshold is None
-        m.threshold = -10
-        assert m.threshold -10
-        m.threshold = -sys.float_info.max
-        assert m.threshold == -sys.float_info.max
-        with pytest.raises(ValueError):
-            m.threshold = "string"
-        m = Memory(temperature=1, noise=0, threshold=-3)
-        for ol in [False, True, 1, 2]:
-            m.reset()
-            m.learn({"cheese": "tilset"})
-            m.advance(100)
-            assert m.retrieve() is not None
-            m.advance(1000)
-            assert m.retrieve() is None
+    m = Memory()
+    assert m.threshold is None
+    m.threshold = -10
+    assert m.threshold -10
+    m.threshold = -sys.float_info.max
+    assert m.threshold == -sys.float_info.max
+    with pytest.raises(ValueError):
+        m.threshold = "string"
+    m = Memory(temperature=1, noise=0, threshold=-3)
+    for ol in [False, True, 1, 2]:
+        m.reset()
+        m.learn({"cheese": "tilset"})
+        m.advance(100)
+        assert m.retrieve() is not None
+        m.advance(1000)
+        assert m.retrieve() is None
 
 def test_mismatch():
-    for m in [Memory(), UniformMemory(exact=["cheese"])]:
-        assert m.mismatch is None
-        m.mismatch = 0
-        assert m.mismatch == 0
-        m.mismatch = 1
-        assert isclose(m.mismatch, 1)
-        m.mismatch = None
-        assert m.mismatch is None
-        m.mismatch = False
-        assert m.mismatch is None
-        with pytest.raises(ValueError):
-            m.mismatch = -1
+    m = Memory()
+    assert m.mismatch is None
+    m.mismatch = 0
+    assert m.mismatch == 0
+    m.mismatch = 1
+    assert isclose(m.mismatch, 1)
+    m.mismatch = None
+    assert m.mismatch is None
+    m.mismatch = False
+    assert m.mismatch is None
+    with pytest.raises(ValueError):
+        m.mismatch = -1
 
 def test_learn_retrieve():
-    for m in [Memory(), UniformMemory(exact="a, b")]:
+    for m in [Memory(), Memory(index="a"), Memory(index=["b"]),
+              Memory(index="a,b"), Memory(index="b a")]:
         m.learn({"a":1, "b":"x"})
         m.learn({"a":2, "b":"y"})
         m.learn({"a":3, "b":"z"})
@@ -341,7 +334,8 @@ def test_learn_retrieve():
         assert isclose(sum(m.retrieve({"b":"x"})["a"] == 4 for i in range(1000)) / 1000, 0.71, rel_tol=0.1)
         with pytest.raises(TypeError):
             m.learn({"a":[1, 2]})
-    for m in [Memory(), UniformMemory(exact=["color", "size"])]:
+    for m in [Memory(), Memory(index="color"), Memory(index=["size"]),
+              Memory(index=" color  , size  "), Memory(index="size color")]:
         m.learn({"color":"red", "size":1}, advance=True)
         assert m.time == 1
         m.learn({"size":1, "color":"blue"})
@@ -360,7 +354,7 @@ def test_learn_retrieve():
         m.learn({"color":"red", "size":1})
         with pytest.raises(RuntimeError):
             m.retrieve({"color":"red"})
-    for m in [Memory(), UniformMemory(exact=["kind", "ripeness"], numeric=["weight"])]:
+    for m in [Memory(), Memory(index="kind"), Memory(index="kind, ripeness")]:
         m.temperature = 1
         m.noise = 0
         m.learn({"kind": "tilset", "ripeness": 9, "weight": 1.2})
@@ -385,40 +379,36 @@ def test_similarity():
         if y < x:
             return sim(y, x)
         return 1 - (y - x) / y
-    for m in [Memory(mismatch=1), UniformMemory(mismatch=1, partial="a b")]:
-        m.similarity(["a"], sim)
-        m.similarity(["b"], True)
-        def test_one(x, y, a_len1, a_val, a_len2, b_len1, b_val, b_len2):
-            a = m._similarities.get("a")
-            b = m._similarities.get("b")
-            c = m._similarities.get("c")
-            assert c is None
-            assert len(a._cache) == a_len1
-            assert len(b._cache) == b_len1
-            assert isclose(a._similarity(x, y), a_val)
-            assert isclose(b._similarity(y, x), b_val)
-            assert isclose(a._similarity(y, x), a_val)
-            assert isclose(b._similarity(x, y), b_val)
-            assert isclose(a._similarity(x, y), a_val)
-            assert isclose(b._similarity(y, x), b_val)
-            assert len(a._cache) == a_len2
-            assert len(b._cache) == b_len2
-        test_one(3, 3, 0, 0, 0, 0, 0, 0)
-        test_one(3, 4, 0, -0.25, 2, 0, -1, 0)
-        test_one(4, 3, 2, -0.25, 2, 0, -1, 0)
-        m.similarity(["a"], weight=2)
-        m.similarity(["b"], weight=10)
-        test_one(4, 3, 0, -0.50, 2, 0, -10, 0)
-        if not isinstance(m, UniformMemory):
-            m.similarity(["b"])
-            assert m._similarities.get("b") is None
-        else:
-            with pytest.raises(RuntimeError):
-                m.similarity(["b"])
-        m.use_actr_similarity = True
-        m.similarity(["b"], weight=20)
-        m.similarity(["a"], lambda x, y: sim(x, y) - 1, 4)
-        test_one(3, 4, 0, -1, 2, 0, -20, 0)
+    m = Memory(mismatch=1)
+    m.similarity(["a"], sim)
+    m.similarity(["b"], True)
+    def test_one(x, y, a_len1, a_val, a_len2, b_len1, b_val, b_len2):
+        a = m._similarities.get("a")
+        b = m._similarities.get("b")
+        c = m._similarities.get("c")
+        assert c is None
+        assert len(a._cache) == a_len1
+        assert len(b._cache) == b_len1
+        assert isclose(a._similarity(x, y), a_val)
+        assert isclose(b._similarity(y, x), b_val)
+        assert isclose(a._similarity(y, x), a_val)
+        assert isclose(b._similarity(x, y), b_val)
+        assert isclose(a._similarity(x, y), a_val)
+        assert isclose(b._similarity(y, x), b_val)
+        assert len(a._cache) == a_len2
+        assert len(b._cache) == b_len2
+    test_one(3, 3, 0, 0, 0, 0, 0, 0)
+    test_one(3, 4, 0, -0.25, 2, 0, -1, 0)
+    test_one(4, 3, 2, -0.25, 2, 0, -1, 0)
+    m.similarity(["a"], weight=2)
+    m.similarity(["b"], weight=10)
+    test_one(4, 3, 0, -0.50, 2, 0, -10, 0)
+    m.similarity(["b"])
+    assert m._similarities.get("b") is None
+    m.use_actr_similarity = True
+    m.similarity(["b"], weight=20)
+    m.similarity(["a"], lambda x, y: sim(x, y) - 1, 4)
+    test_one(3, 4, 0, -1, 2, 0, -20, 0)
 
 def test_retrieve_partial():
     def sim(x, y):
@@ -428,7 +418,8 @@ def test_retrieve_partial():
     def sim2(x, y):
         return sim(x, y) - 1
     for m in [Memory(mismatch=1, noise=0, temperature=1),
-              UniformMemory(mismatch=1, noise=0, temperature=1, exact="b", partial=["a"])]:
+              Memory(mismatch=1, noise=0, temperature=1, index="b"),
+              Memory(index="a,b", mismatch=1, noise=0, temperature=1)]:
         m.similarity(["a"], sim)
         m.learn({"a":1, "b":"x"})
         m.learn({"a":2, "b":"y"})
@@ -448,7 +439,9 @@ def test_retrieve_partial():
 
 def test_blend():
     for m in [Memory(temperature=1, noise=0),
-              UniformMemory(temperature=1, noise=0, exact=["a"], numeric=["b"])]:
+              Memory(temperature=1, noise=0, index="a"),
+              Memory(temperature=1, noise=0, index="b"),
+              Memory(temperature=1, noise=0, index="a,b")]:
         m.learn({"a":1, "b":1})
         m.learn({"a":2, "b":2})
         m.advance()
@@ -480,9 +473,14 @@ def test_blend():
         m.advance()
         with pytest.raises(TypeError):
             m.blend("a", b=1)
-    for m in [#Memory(temperature=1, noise=0),
-              UniformMemory(temperature=1, noise=0,
-                            exact=["e"], numeric=["b"], partial=["n", "s"])]:
+    for m in [Memory(temperature=1, noise=0),
+              Memory(temperature=1, noise=0, index="b"),
+              Memory(temperature=1, noise=0, index="e"),
+              Memory(temperature=1, noise=0, index="n"),
+              Memory(temperature=1, noise=0, index="s"),
+              Memory(temperature=1, noise=0, index="b e"),
+              Memory(temperature=1, noise=0, index="b e n"),
+              Memory(temperature=1, noise=0, index="b e n   s")]:
         m.similarity(["n"], lambda x, y: 1 - abs(x - y) / 100, 0.5)
         s_sims = {("a", "b"): 0.5, ("a", "c"): 0.1, ("b", "c"): 0.9}
         m.similarity(["s"], lambda x, y: s_sims[tuple(sorted([x, y]))], 0.75)
@@ -540,7 +538,11 @@ def test_blend():
 
 def test_best_blend():
     for m in [Memory(temperature=1, noise=0),
-              UniformMemory(temperature=1, noise=0, exact=["x", "y"], numeric=["u"])]:
+              Memory(temperature=1, noise=0, index="x"),
+              Memory(temperature=1, noise=0, index="y"),
+              Memory(temperature=1, noise=0, index="u"),
+              Memory(temperature=1, noise=0, index="x y"),
+              Memory(temperature=1, noise=0, index="u x y")]:
         m.learn({"u":0, "x":"a","y":1})
         m.advance()
         m.learn({"u":1, "x":"b","y":2})
@@ -575,7 +577,9 @@ def test_best_blend():
         assert a == "a"
         assert isclose(v, 0.128211304635919)
     for m in [Memory(temperature=0.35, noise=0.25),
-              UniformMemory(temperature=0.35, noise=0.25, numeric=["u"], exact=["x"])]:
+              Memory(temperature=0.35, noise=0.25, index="x"),
+              Memory(temperature=0.35, noise=0.25, index="u"),
+              Memory(temperature=0.35, noise=0.25, index="x y")]:
         m.learn({"u":0, "x":"a"})
         m.advance()
         m.learn({"u":1, "x":"b"})
@@ -600,16 +604,11 @@ def test_best_blend():
         assert m.time == 8
         m.best_blend("u", "ab", select_attribute="x")
         assert m.time == 8
-        if isinstance(m, UniformMemory):
-            with pytest.raises(ValueError):
-                m.learn({"u":"not a number", "x":"a"})
-            m.advance()
-        else:
-            m.learn({"u":"not a number", "x":"a"})
-            m.advance()
-            assert m.time == 9
-            with pytest.raises(Exception):
-                m.best_blend("u", "ab", "x")
+        m.learn({"u":"not a number", "x":"a"})
+        m.advance()
+        assert m.time == 9
+        with pytest.raises(Exception):
+            m.best_blend("u", "ab", "x")
         assert m.time == 9
         a, v = m.best_blend("u", ({"x": x} for x in "bc"))
         assert a["x"] == "b"
@@ -619,7 +618,9 @@ def test_best_blend():
 
 def test_discrete_blend():
     for m in [Memory(temperature=1, noise=0),
-              UniformMemory(temperature=1, noise=0, exact=["o", "s"])]:
+              Memory(temperature=1, noise=0, index="s"),
+              Memory(temperature=1, noise=0, index="o"),
+              Memory(temperature=1, noise=0, index="s o")]:
         for _ in range(10):
             for i in range(10):
                 for j in [0, 1, 2, 3, 3, 4, 5, 6, 7, 5, 8, 5, 9]:
@@ -726,8 +727,14 @@ def test_mixed_slots():
             assert mp is c_best_m or isclose(mp, c_best_m)
 
     for m in [Memory(temperature=1, noise=0),
-              UniformMemory(temperature=1, noise=0,
-                            exact="decision size color".split(), numeric=["utility"])]:
+              Memory(temperature=1, noise=0, index="decision"),
+              Memory(temperature=1, noise=0, index="decision color"),
+              Memory(temperature=1, noise=0, index="decision color size"),
+              Memory(temperature=1, noise=0, index="color"),
+              Memory(temperature=1, noise=0, index="size"),
+              Memory(temperature=1, noise=0, index="color size"),
+              Memory(temperature=1, noise=0, index="utility"),
+              Memory(temperature=1, noise=0, index="decision size color utility")]:
         run_once(10, -0.3465735902799726, None,
                  50, 0, None,
                  36.31698208548453, -0.3465735902799726, None,
@@ -743,10 +750,6 @@ def test_mixed_slots():
                  None, None, None,
                  "B", 50, 0, None,
                  "B", 100, -0.5493061443340549, None)
-    for m in [Memory(temperature=1, noise=0),
-              UniformMemory(temperature=1, noise=0,
-                            exact=["decision", "size"], numeric=["utility"], partial=["color"])]:
-        m.mismatch = 1
         m.similarity(["color"], True)
         run_once(10, -0.3465735902799726, None,
                  50, 0, 0,
@@ -755,11 +758,6 @@ def test_mixed_slots():
                  None, None, None,
                  "B", 50, 0, None,
                  "B", 56.669062843109664, -1, -1)
-    for m in [Memory(temperature=1, noise=0),
-              UniformMemory(temperature=1, noise=0,
-                            exact=["decision"], numeric=["utility"], partial=["color", "size"])]:
-        m.mismatch = 1
-        m.similarity(["color"], True)
         m.similarity(["size"], lambda x, y: 1 - abs(x - y) / 4)
         run_once(10, -0.3465735902799726, None,
                  50, 0, 0,
@@ -771,7 +769,7 @@ def test_mixed_slots():
 
 def test_fixed_noise():
     N = 300
-    for m in [Memory(), UniformMemory(exact=["n"])]:
+    for m in [Memory(), Memory(index="n")]:
         for i in range(N):
             m.learn({"n":i})
             m.advance()
@@ -804,39 +802,39 @@ def test_fixed_noise():
             assert ah[i]["activation_noise"] != ah[i + 2 * N]["activation_noise"]
             assert ah[i + N]["activation_noise"] == ah[i + 2 * N]["activation_noise"]
 
-# def test_forget():
-#     for m in [Memory(), UniformMemory(exact=["n", "s"])]:
-#         assert not m.forget({"n":1}, 0)
-#         m.learn({"n":1})
-#         m.advance()
-#         assert not m.forget({"n":1}, 1)
-#         assert len(m) == 1
-#         assert m.forget({"n":1}, 0)
-#         assert len(m) == 0
-#         m.learn({"n":1, "s":"foo"})
-#         m.advance()
-#         m.learn({"n":2, "s":"bar"})
-#         m.advance()
-#         m.learn({"n":1, "s":"foo"})
-#         m.advance()
-#         assert len(m) == 2
-#         assert m.forget({"n":1, "s":"foo"}, 1)
-#         assert len(m) == 2
-#         assert m.forget({"s":"bar", "n":2}, 2)
-#         assert len(m) == 1
-#         assert m.chunks[0].references == [3]
-#         for ol in [True, 1, 2, 1000]:
-#             m.reset()
-#             m.optimized_learning = ol
-#             m.learn({"n":1})
-#             m.advance()
-#             with pytest.raises(RuntimeError):
-#                 m.forget({"n": 1}, 0)
+def test_forget():
+    for m in [Memory(), Memory(index="n"), Memory(index="s"), Memory(index="n s")]:
+        assert not m.forget({"n":1}, 0)
+        m.learn({"n":1})
+        m.advance()
+        assert not m.forget({"n":1}, 1)
+        assert len(m) == 1
+        assert m.forget({"n":1}, 0)
+        assert len(m) == 0
+        m.learn({"n":1, "s":"foo"})
+        m.advance()
+        m.learn({"n":2, "s":"bar"})
+        m.advance()
+        m.learn({"n":1, "s":"foo"})
+        m.advance()
+        assert len(m) == 2
+        assert m.forget({"n":1, "s":"foo"}, 1)
+        assert len(m) == 2
+        assert m.forget({"s":"bar", "n":2}, 2)
+        assert len(m) == 1
+        assert m.chunks[0].references == [3]
+        for ol in [True, 1, 2, 1000]:
+            m.reset()
+            m.optimized_learning = ol
+            m.learn({"n":1})
+            m.advance()
+            with pytest.raises(RuntimeError):
+                m.forget({"n": 1}, 0)
 
 def test_chunks_and_references():
     # We're depending upon chunks being in initial insertion order here; is that really
     # part of our contract, or is it just an unsupported artifact of how dicts now work?
-    for m in [Memory(), UniformMemory(exact=["n"])]:
+    for m in [Memory(), Memory(index="n")]:
         assert len(m.chunks) == 0
         m.learn({"n":1})
         m.advance()
@@ -887,34 +885,33 @@ def test_chunks_and_references():
         assert m.chunks[0].references == [2]
         assert m.chunks[1].reference_count == 1
         assert m.chunks[1].references == [1]
-    def f(ol):
-        m.reset()
-        m.optimized_learning = ol
-        m.learn({"a1":1, "a2":2, "a3":3})
-        m.learn({"a2":2, "a1":1, "a3":3})
-        m.advance()
-        m.learn({"a3":3, "a1":1, "a2":2})
-        m.advance()
-        m.learn({"a3":3, "a1":1, "a2":20})
-        m.advance()
-        m.learn({"a3":3, "a2":2, "a1":1})
-        m.learn({"a1":10, "a3":3, "a2":2})
-        m.advance()
-        m.learn({"a1":1, "a3":3, "a2":2})
-        m.learn({"a1":1, "a3":3, "a2":2})
-        m.advance()
-        m.learn({"a2":2, "a3":3, "a1":1})
-        m.advance()
-        m.learn({"a2":2, "a1":1, "a3":3})
-        m.advance()
-        m.learn({"a1":1, "a3":3, "a2":2})
-        m.advance()
-        m.learn({"a3":3, "a1":1, "a2":20})
-        assert len(m.chunks) == 3
-        assert m.chunks[0].reference_count == 9
-        assert m.chunks[1].reference_count == 2
-        assert m.chunks[2].reference_count == 1
-    for m in [Memory(), UniformMemory(exact="a1 a2 a3".split())]:
+        def f(ol):
+            m.reset()
+            m.optimized_learning = ol
+            m.learn({"a1":1, "a2":2, "a3":3})
+            m.learn({"a2":2, "a1":1, "a3":3})
+            m.advance()
+            m.learn({"a3":3, "a1":1, "a2":2})
+            m.advance()
+            m.learn({"a3":3, "a1":1, "a2":20})
+            m.advance()
+            m.learn({"a3":3, "a2":2, "a1":1})
+            m.learn({"a1":10, "a3":3, "a2":2})
+            m.advance()
+            m.learn({"a1":1, "a3":3, "a2":2})
+            m.learn({"a1":1, "a3":3, "a2":2})
+            m.advance()
+            m.learn({"a2":2, "a3":3, "a1":1})
+            m.advance()
+            m.learn({"a2":2, "a1":1, "a3":3})
+            m.advance()
+            m.learn({"a1":1, "a3":3, "a2":2})
+            m.advance()
+            m.learn({"a3":3, "a1":1, "a2":20})
+            assert len(m.chunks) == 3
+            assert m.chunks[0].reference_count == 9
+            assert m.chunks[1].reference_count == 2
+            assert m.chunks[2].reference_count == 1
         f(False)
         assert m.chunks[2].references == [3]
         assert m.chunks[0].references == [0, 0, 1, 3, 4, 4, 5, 6, 7]
@@ -962,12 +959,18 @@ def test_pickle():
                 m.temperature,
                 m.threshold,
                 m.mismatch,
-                m.optimized_learning]
-    for m in [Memory(temperature=0.97, noise=0, decay=0.43, threshold=-2.9,
-                     mismatch=1.1, optimized_learning=2),
-              UniformMemory(temperature=0.97, noise=0, decay=0.43, threshold=-2.9,
-                            mismatch=1.1, optimized_learning=2,
-                            exact=["e"], numeric=["b"], partial=["n", "s"])]:
+                m.optimized_learning,
+                m._indexed_attributes,
+                m._index,
+                m._slot_name_index]
+    for m in [Memory(temperature=0.97, noise=0, decay=0.43, threshold=-2.9, mismatch=1.1,
+                     optimized_learning=2),
+              Memory(temperature=0.97, noise=0, decay=0.43, threshold=-2.9, mismatch=1.1,
+                     optimized_learning=2, index="b"),
+              Memory(temperature=0.97, noise=0, decay=0.43, threshold=-2.9, mismatch=1.1,
+                     optimized_learning=2, index="b e"),
+              Memory(temperature=0.97, noise=0, decay=0.43, threshold=-2.9, mismatch=1.1,
+                     optimized_learning=2, index="b e n s")]:
         m.similarity(["n"], pickle_sim_1 , 0.5)
         m.similarity(["s"], pickle_sim_2 , 0.75)
         m.learn({"b": 0, "e": 0, "n": 0, "s": "a"}, advance=True)
@@ -994,32 +997,26 @@ def test_pickle():
         with pytest.raises(Exception):
             pickle.dumps(m)
 
-def test_uniform_slots():
-    def run_one(exact, partial, numeric, other):
-        for m in [UniformMemory(exact=exact, partial=partial, numeric=numeric,
-                                other=other, temperature=0.4, noise=0),
-                  UniformMemory(partial=partial, numeric=numeric, other=other,
-                                exact=exact, temperature=0.4, noise=0),
-                  UniformMemory(numeric=numeric, other=other, exact=exact,
-                                partial=partial, temperature=0.4, noise=0),
-                  UniformMemory(temperature=0.4, noise=0, other=other, exact=exact,
-                                partial=partial, numeric=numeric),
-                  UniformMemory(other=other, numeric=numeric, temperature=0.4, noise=0,
-                                partial=partial, exact=exact)]:
-            assert m.learn({"e1": None, "e2": "b", "p1": 1, "p2": None, "n1": 3, "n2": 4, "o1": None, "o2": 5}, 1)
-            assert m.learn({"e1": "a", "e2": "b", "p1": 1, "p2": 2, "n1": 13, "n2": 14, "o1": "c", "o2": 5}, 1)
-            assert not m.learn({"e2": "b", "p1": 1, "n1": 3, "n2": 4, "o2": 5}, 1)
-            assert m.retrieve({"e2": "b"})["o1"] is None
-            assert m.retrieve({"e2": "b"})["o2"] == 5
-            assert m.retrieve({"e1": None})["o1"] is None
-            assert m.retrieve({"e1": None})["o2"] == 5
-            assert isclose(m.blend("n1", {"n2": 4}), 3)
-            assert isclose(m.blend("n2", {"e2": "b", "p1": 1}), 5.1859530693301314)
-            assert isclose(m.blend("p1", {}), 1)
-            assert isclose(m.blend("o2", {"e1": None}), 5)
-    run_one("e1,e2", "p1,p2", "n1,n2", ["o1", "o2"])
-    run_one(("e1", "e2", "p1"), "", "n1, n2", " o1   ,o2,   p2 ")
-    run_one("e1 e2 n1 n2", "p1 p2", "", "   o1     o2  ")
-    run_one("", "", "", "e1,e2,p1,p2,n1,n2,o1,o2")
-    with pytest.raises(ValueError):
-        UniformMemory(exact="a,,b")
+def test_index():
+    entries = [(random.randint(0, 200),
+                random.randint(0, 200))
+               for _ in range(1_000_000)]
+    random.shuffle(entries)
+    keys = list(range(0, 200))
+    random.shuffle(keys)
+    keys = keys[:50]
+    m = Memory()
+    for d, u in entries:
+        m.learn({"d": d, "u": u}, 1)
+    start = default_timer()
+    for k in keys:
+        m.blend("u", {"d": k})
+    no_index = default_timer() - start
+    m = Memory(index="d")
+    for d, u in entries:
+        m.learn({"d": d, "u": u}, 1)
+    start = default_timer()
+    for k in keys:
+        m.blend("u", {"d": k})
+    with_index = default_timer() - start
+    assert with_index < no_index / 4

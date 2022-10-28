@@ -61,7 +61,7 @@ from prettytable import PrettyTable
 from pylru import lrucache
 from warnings import warn
 
-__all__ = ["Memory", "UniformMemory"]
+__all__ = ["Memory"]
 
 DEFAULT_NOISE = 0.25
 DEFAULT_DECAY = 0.5
@@ -110,7 +110,8 @@ class Memory(dict):
                  threshold=None,
                  mismatch=None,
                  optimized_learning=False,
-                 use_actr_similarity=False):
+                 use_actr_similarity=False,
+                 index=None):
         self._fixed_noise = None
         self._fixed_noise_time = None
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
@@ -133,14 +134,30 @@ class Memory(dict):
         self.mismatch = mismatch
         self.optimized_learning = optimized_learning
         self.use_actr_similarity = use_actr_similarity
+        index = Memory._listify(index)
+        for a in index:
+            Memory._ensure_slot_name(a)
+        self._indexed_attributes = set(index)
+        self._index = defaultdict(list)
         self._activation_history = None
         self._slot_name_index = defaultdict(list)
         # Initialize the noise RNG from the parent Python RNG, in case the latter gets seeded for determinancy.
         self._rng = np.random.default_rng([random.randint(0, MAXIMUM_RANDOM_SEED) for i in range(16)])
         self.reset()
 
+    @staticmethod
+    def _listify(thing):
+        if thing is None:
+            return []
+        elif not isinstance(thing, str):
+            return thing
+        elif "," in thing:
+            return [s.strip() for s in thing.split(",")]
+        else:
+            return thing.split()
+
     def __repr__(self):
-        return f"<Memory {id(self)}: {len(self)}, {self._time}>"
+        return f"<Memory {id(self)}: {list(self._indexed_attributes)}, {len(self)}, {self._time}>"
 
     def reset(self, preserve_prepopulated=False):
         """Deletes the Memory's chunks and resets its time to zero.
@@ -152,13 +169,16 @@ class Memory(dict):
             preserved = {k: v for k, v in self.items() if v._creation == 0}
         self.clear()
         self._slot_name_index.clear()
+        self._index.clear()
+        self._clear_fixed_noise()
+        self._activation_history = None
         self._time = 0
         if preserve_prepopulated:
             for k, v in preserved.items():
                 v._references = np.empty(1, dtype=np.int32) if self._optimized_learning else np.array([0])
                 v._reference_count = 1
                 self[k] = v
-        self._clear_fixed_noise()
+                self._slot_name_index[frozenset(v.keys())].append(v)
 
     @property
     @contextmanager
@@ -539,7 +559,7 @@ class Memory(dict):
 
     @property
     def activation_history(self):
-        """A :class:`MutableSequence`, typically a :class:`list`,  into which details of the computations underlying PyACTUp operation are appended.
+        """A :class:`MutableSequence`, typically a :class:`list`, into which details of the computations underlying PyACTUp operation are appended.
         If ``None``, the default, no such details are collected.
         In addition to activation computations, the resulting retrieval probabilities are
         also collected for blending operations.
@@ -696,9 +716,12 @@ class Memory(dict):
         created = False
         if not (chunk := self.get(signature)):
             chunk = Chunk(self, slots)
+            created = True
             self[signature] = chunk
             self._slot_name_index[frozenset(slots.keys())].append(chunk)
-            created = True
+            if  self._indexed_attributes:
+                self._index[Memory._signature(chunk, "learn", self._indexed_attributes)
+                            ].append(chunk)
         self._cite(chunk)
         if advance is True:
             self.advance()
@@ -715,6 +738,10 @@ class Memory(dict):
         slots = dict(slots)
         for name in slots.keys():
             Memory._ensure_slot_name(name)
+        if learn:
+            for n in self._indexed_attributes:
+                if slots.get(n) is None:
+                    slots[n] = None
         return slots
 
     @staticmethod
@@ -745,19 +772,6 @@ class Memory(dict):
             chunk._references[-1] = self._time
         chunk._reference_count += 1
 
-    def _forget(self, chunk, signature, when):
-        try:
-            i = np.where(chunk._references == when)[0][0]
-        except IndexError:
-            return False
-        if i < chunk._reference_count:
-            chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
-        chunk._reference_count -= 1
-        if not chunk._reference_count:
-            self._slot_name_index[frozenset(chunk.keys())].remove(chunk)
-            del self[signature]
-        return True
-
     def forget(self, slots, when):
         """Undoes the operation of a previous call to :meth:`learn`.
 
@@ -780,9 +794,22 @@ class Memory(dict):
         chunk = self.get(signature)
         if not chunk:
             return False
-        return self._forget(chunk, signature, when)
+        try:
+            i = np.where(chunk._references == when)[0][0]
+        except IndexError:
+            return False
+        if i < chunk._reference_count:
+            chunk._references[i:chunk._reference_count-1] = chunk._references[i+1:chunk._reference_count]
+        chunk._reference_count -= 1
+        if not chunk._reference_count:
+            self._slot_name_index[frozenset(chunk.keys())].remove(chunk)
+            del self[signature]
+            if self._indexed_attributes:
+                self._index[Memory._signature(chunk, "forget", self._indexed_attributes)
+                            ].remove(chunk)
+        return True
 
-    def _matching_chunks(self, conditions, extra, partial):
+    def _activations(self, conditions, extra=None, partial=True):
         slot_names = conditions.keys()
         if extra:
             slot_names = set(slot_names)
@@ -797,17 +824,19 @@ class Memory(dict):
                     exact_slots.append((n, v))
         else:
             exact_slots = list(conditions.items())
-        chunks = []
-        for k, candidates in self._slot_name_index.items():
-            if slot_names <= k: # subset
-                for c in candidates:
-                    if not all(c[n] == v for n, v in exact_slots):
-                        continue
-                    chunks.append(c)
-        return chunks, partial_slots
-
-    def _activations(self, conditions, extra=None, partial=True):
-        chunks, partial_slots = self._matching_chunks(conditions, extra, partial)
+        if self._indexed_attributes and (set(a[0] for a in exact_slots)
+                                         == self._indexed_attributes):
+            chunks = self._index[Memory._signature(conditions,
+                                                   None,
+                                                   self._indexed_attributes)]
+        else:
+            chunks = []
+            for k, candidates in self._slot_name_index.items():
+                if slot_names <= k: # subset
+                    for c in candidates:
+                        if not all(c[n] == v for n, v in exact_slots):
+                            continue
+                        chunks.append(c)
         if len(chunks) == 0:
             return None, None, 0
         nchunks = len(chunks)
@@ -1170,7 +1199,7 @@ class Memory(dict):
             raise ValueError(f"Function {function} is neither callable nor True")
         if weight is not None and weight <= 0:
             raise ValueError(f"Similarity weight, {weight}, is not a positive number")
-        for a in attributes:
+        for a in Memory._listify(attributes):
             Memory._ensure_slot_name(a)
             if function is None and weight is None:
                 if a in self._similarities:
@@ -1205,7 +1234,7 @@ class Chunk(dict):
         return "<Chunk {} {} {}>".format(self._name, dict(self), self._reference_count)
 
     def __str__(self):
-        return self._name
+        return f"Chunk-{self._name}"
 
     @property
     def reference_count(self):
@@ -1256,122 +1285,6 @@ class Similarity:
         self._cache[signature] = result
         self._cache[(y, x)] = result
         return result
-
-
-class UniformMemory (Memory):
-    """ TODO
-    """
-
-    def __init__(self, exact=[], partial=[], other=[], **kwargs):
-        super().__init__(**kwargs)
-        def listify(s):
-            if not isinstance(s, str):
-                return s
-            elif "," in s:
-                return [x.strip() for x in s.split(",")]
-            else:
-                return s.split()
-        exact = listify(exact)
-        partial = listify(partial)
-        other = listify(other)
-        if len(exact) + len(partial) + len(other) == 0:
-            raise RuntimeError("No attributes provided for UniformMemory")
-        self._attributes = dict()
-        def add_attr(name, val):
-            Memory._ensure_slot_name(name)
-            if self._attributes.get(name):
-                raise ValueError(f"Duplicate attribute name {name} in UniformMemory")
-            self._attributes[name] = val
-        for n in exact:
-            add_attr(n, "e")
-        self._exact_attributes = set(exact)
-        for n in other:
-            add_attr(n, "o")
-        for n in partial:
-            add_attr(n, "p")
-            self.similarity([n], True)
-        self._partial_slots = set(partial)
-        self._index = dict()
-
-    def __repr__(self):
-        return f"<UniformMemory {id(self)}: {list(self._attributes)}, {len(self)}, {self._time}>"
-
-    def similarity(self, attributes, function=None, weight=None):
-        for a in attributes:
-            if (k := self._attributes.get(a)) is None:
-                raise ValueError(f"No attribute {a} in this UniformMemory")
-            elif k != "p":
-                pass
-                # raise RuntimeError(f"Cannot adjust similarities for attributes that "
-                #                    f"were not initially declared partial: {a}")
-            if function is None and weight is None:
-                raise RuntimeError(f"Cannot remove a similarity function for an attribute "
-                                   f"that was initially declared partial: {a}")
-        super().similarity(attributes, function, weight)
-
-    def _ensure_slots(self, slots, learn=False):
-        slots = super()._ensure_slots(slots)
-        for n in slots:
-            if (k := self._attributes.get(n)) is None:
-                raise ValueError(f"Unknown attribute name {n}")
-        if learn:
-            if len(slots) < len(self._attributes):
-                for n, k in self._attributes.items():
-                    if slots.get(n) is None:
-                        slots[n] = None
-        return slots
-
-    def learn(self, slots, advance=None):
-        result = super().learn(slots, advance)
-        if result is not None:
-            signature = Memory._signature(result, "learn", self._exact_attributes)
-            chunks = self._index.get(signature)
-            if chunks is None:
-                self._index[signature] = [result]
-            else:
-                chunks.append(result)
-        return result
-
-    # def _forget(self, chunk, signature, when):
-    #     if not super()._forget(chunk, signature, when):
-    #         return False
-    #     if not chunk._reference_count:
-    #         isig = Memory._signature(chunk, "forget", self._exact_attributes)
-    #         umci = self._index[isig]
-    #         i = umci._chunks.index(chunk)
-    #         del umci._chunks[i]
-    #         for sublist in umci._numerics:
-    #             del sublist[i]
-    #         if not umci._chunks:
-    #             del self._index[isig]
-    #     return True
-
-    def _matching_chunks(self, conditions, extra, partial):
-        if self._exact_attributes:
-            condition_set = set(conditions)
-            if self._exact_attributes <= condition_set:
-                candidates = self._index.get(Memory._signature(
-                    conditions, None, self._exact_attributes))
-                if candidates is None:
-                    return [], None
-                if len(condition_set) == len(self._exact_attributes):
-                    return candidates, []
-                if partial and self._mismatch:
-                    partial_slots = [(n, conditions[n], self._similarities[n])
-                                     for n in self._partial_slots.intersection(condition_set)]
-                else:
-                    partial_slots = []
-                if len(condition_set) == len(self._exact_attributes) + len(partial_slots):
-                    return candidates, partial_slots
-                refine_by = condition_set.difference(self._exact_attributes.union(
-                    self._partial_slots if self._mismatch else {}))
-                chunks = []
-                for c in candidates:
-                    if not all(c[n] == conditions[n] for n in refine_by):
-                        continue
-                    chunks.append(c)
-                return chunks, partial_slots
-        return super()._matching_candidates(conditions, extra, partial)
 
 
 # Local variables:
