@@ -161,21 +161,10 @@ class Memory(dict):
         self._rng = np.random.default_rng([random.randint(0, MAXIMUM_RANDOM_SEED) for i in range(16)])
         self.reset()
 
-    @staticmethod
-    def _listify(thing):
-        if thing is None:
-            return []
-        elif not isinstance(thing, str):
-            return thing
-        elif "," in thing:
-            return [s.strip() for s in thing.split(",")]
-        else:
-            return thing.split()
-
     def __repr__(self):
         return f"<Memory {id(self)}: {list(self._indexed_attributes)}, {len(self)}, {self._time}>"
 
-    def reset(self, preserve_prepopulated=False):
+    def reset(self, preserve_prepopulated=False, index=None):
         """Deletes the Memory's chunks and resets its time to zero.
         If *preserve_prepopulated* is false it deletes all chunks; if it is true it
         deletes all chunk references later than time zero, completely deleting those
@@ -189,6 +178,8 @@ class Memory(dict):
         self._clear_fixed_noise()
         self._activation_history = None
         self._time = 0
+        if index is not None:
+            self.index = index
         if preserve_prepopulated:
             for k, v in preserved.items():
                 v._references = np.empty(1, dtype=np.int32) if self._optimized_learning else np.array([0])
@@ -284,12 +275,7 @@ class Memory(dict):
 
     @index.setter
     def index(self, value):
-        indexed_attributes = set()
-        for a in Memory._listify(value):
-            Memory._ensure_slot_name(a)
-            if a in indexed_attributes:
-                raise ValueError(f"Duplicate index attributed {a}")
-            indexed_attributes.add(a)
+        indexed_attributes = Memory._ensure_slot_names(value)
         if indexed_attributes == self._indexed_attributes:
             return
         if self:
@@ -775,6 +761,25 @@ class Memory(dict):
         if not (isinstance(name, str) and len(name) > 0):
                 raise ValueError(f"Attribute name {name} is not a non-empty string")
 
+    @staticmethod
+    def _ensure_slot_names(thing):
+        if thing is None:
+            return []
+        if isinstance(thing, str):
+            if "," in thing:
+                names = [s.strip() for s in thing.split(",")]
+            else:
+                names = thing.split()
+        else:
+            names = thing
+        result = set()
+        for n in names:
+            Memory._ensure_slot_name(n)
+            if n in result:
+                raise ValueError(f"Duplicate attribute name {n}")
+            result.add(n)
+        return result
+
     def _ensure_slots(self, slots, learn=False):
         slots = dict(slots)
         for name in slots.keys():
@@ -1246,8 +1251,7 @@ class Memory(dict):
             raise ValueError(f"Function {function} is neither callable nor True")
         if weight is not None and weight <= 0:
             raise ValueError(f"Similarity weight, {weight}, is not a positive number")
-        for a in Memory._listify(attributes):
-            Memory._ensure_slot_name(a)
+        for a in Memory._ensure_slot_names(attributes):
             if function is None and weight is None:
                 if a in self._similarities:
                     del self._similarities[a]
