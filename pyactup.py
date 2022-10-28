@@ -97,6 +97,21 @@ class Memory(dict):
     necessary to raise Python's recursion limit with
     `sys.setrecusionlimit <https://docs.python.org/3.8/library/sys.html#sys.setrecursionlimit>`_.
 
+    A common use case for PyACTUp involves all of the chunks in a ``Memory`` having
+    the same attributes, and some of those attributes are always used, by matching
+    exactly, not partially, some of those attributes. The ``index``keyword argument
+    declares that such a set of attributes is present, and can result in significant
+    performance improvements for models with a *very* large number of chunks. The value
+    of this keyword argument should be a list of attribute names. As a convenience, if
+    none of the attribute names contains commas or spaces, a string maybe used instead
+    of a list, the attribute names being separated by spaces or commas; either spaces or
+    commas must be used, not a mixture. For example, both ``index="decision utility"`` and
+    ``index="decision,utiliy"`` are equivalent to ``index=["decision", "utility"]``. The
+    ``index`` cannot be changed after the ``Memory`` is created. All chunks in a
+    ``Memory`` with an *index* must contain values for all the attributes listed in the
+    *index*; if any are omitted in the argument to :meth:`learn` they will be
+    automatically added with a value of ``None``.
+
     If, when creating a ``Memory`` object, any of the various parameters have unsupported
     values an :exc:`Exception` will be raised. See the documentation for the various
     properties that can be used for setting these parameters for further details about
@@ -1178,6 +1193,12 @@ class Memory(dict):
         If neither *function* nor *weight* is supplied both are removed, and these
         *attributes* will no longer have an associated similarity computation, and will
         be matched only exactly.
+
+        As a convenience, if none of the attribute names contains commas or spaces, a
+        string maybe used instead of a list as the first argument to ``similarity``, the
+        attribute names being separated by spaces or commas; either spaces or commas must
+        be used, not a mixture. For example, both ``"decision utility"`` and
+        ``"decision,utiliy"`` are equivalent to ``["decision", "utility"]``.
 
         An :exc:`Exception` is raised if any of the elements of *attributes* are not
         non-zero length strings, if *function* is neither :class:`callable` nor ``True``,

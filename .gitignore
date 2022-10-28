@@ -7,3 +7,4 @@ lisp
 build
 .venv-activation-script
 .pyactup
+old-*

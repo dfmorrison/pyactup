@@ -998,6 +998,14 @@ def test_pickle():
             pickle.dumps(m)
 
 def test_index():
+    m = Memory(index="a b")
+    c = m.learn({"a": 0})
+    assert len(c) == 2 and c["b"] is None
+    m = Memory()
+    c = m.learn({"a": 0})
+    assert len(c) == 1 and c.get("b") is None
+    with pytest.raises(KeyError):
+        c["b"]
     entries = [(random.randint(0, 200),
                 random.randint(0, 200))
                for _ in range(1_000_000)]
