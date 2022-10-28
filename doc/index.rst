@@ -280,6 +280,8 @@ API Reference
 
    .. autoattribute:: threshold
 
+   .. autoattribute:: optimized_learning
+
    .. automethod:: similarity
 
    .. autoattribute:: chunks
@@ -288,7 +290,7 @@ API Reference
 
    .. autoattribute:: activation_history
 
-   .. autoattribute:: optimized_learning
+   .. autoattribute:: index
 
    .. automethod:: forget
 
