@@ -1013,13 +1013,24 @@ def test_index():
         m.index = "a"
     m.index = "b,a"
     m.reset()
-    assert set(m.index) == {"a", "b"}
+    assert m.index == ["a", "b"]
     m.index = "a"
     assert m.index == ["a"]
     m = Memory()
     assert m.index == []
     m.index = "a b c"
-    assert set(m.index) == {"a", "b", "c"}
+    assert m.index == ["a", "b", "c"]
+    m = Memory()
+    m.index = ("f 18 6 p h 4 3 r t d j 9 10 w x 8 b q s l 14 17 c 0 "
+              "n o 1 e i k a 11 15 2 g 5 v 16 12 7 19 u y m z 13")
+    assert Memory(index=("x,z,7,16,r,m,p,v,13,l,e,w,o,6,19,8,i,c,q,g,5,n,11,"
+                         "12,d,f,y,u,b,0,9,1,3,10,a,17,14,18,4,2,s,15,k,t,j,h"
+                         )).index == m.index
+    with pytest.raises(ValueError):
+        Memory(index="a a")
+    m = Memory()
+    with pytest.raises(ValueError):
+        m.index = "a,b,c,d,e,b,f,g,h"
     entries = [(random.randint(0, 150),
                 random.randint(0, 150))
                for _ in range(100_000)]

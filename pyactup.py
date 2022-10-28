@@ -280,19 +280,22 @@ class Memory(dict):
         this ``Memory`` contains chunks and attempt to set the ``index`` will raise
         a :exc:`RuntimeError`.
         """
-        return list(self._indexed_attributes)
+        return sorted(self._indexed_attributes)
 
     @index.setter
     def index(self, value):
-        index = set(Memory._listify(value))
-        for a in index:
+        indexed_attributes = set()
+        for a in Memory._listify(value):
             Memory._ensure_slot_name(a)
-        if index == self._indexed_attributes:
+            if a in indexed_attributes:
+                raise ValueError(f"Duplicate index attributed {a}")
+            indexed_attributes.add(a)
+        if indexed_attributes == self._indexed_attributes:
             return
         if self:
             raise RuntimeError("Cannot set the index of a Memory after it contains chunks")
         assert not self._index and not self._slot_name_index
-        self._indexed_attributes = index
+        self._indexed_attributes = indexed_attributes
 
     @property
     def time(self):
