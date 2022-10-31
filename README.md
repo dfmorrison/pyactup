@@ -8,8 +8,6 @@ and the [sources](https://bitbucket.org/dfmorrison/pyactup/) are on Bitbucket.
 
 The latest version of PyACTUp can be download and install from PyPi with pip:
 
-.. parsed-literal::
-
     pip install pyactup
 
 Use of a virtual environment for Python, such as venv or Anaconda is recommended.
