@@ -4,4 +4,4 @@ dist:	clean
 	python -m build -n
 
 clean:
-	rm dist/*
+	rm -rf dist/*

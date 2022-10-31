@@ -165,10 +165,11 @@ class Memory(dict):
         return f"<Memory {id(self)}: {list(self._indexed_attributes)}, {len(self)}, {self._time}>"
 
     def reset(self, preserve_prepopulated=False, index=None):
-        """Deletes the Memory's chunks and resets its time to zero.
-        If *preserve_prepopulated* is false it deletes all chunks; if it is true it
-        deletes all chunk references later than time zero, completely deleting those
-        chunks that were created at a time other than zero.
+        """Deletes this :class:`Memory`'s chunks and resets its time to zero.
+        If *preserve_prepopulated* is ``False`` it deletes all chunks; if it is ``True``
+        it deletes all chunk references later than time zero, completely deleting those
+        chunks that were created at a time other than zero. If *index* is supplied it
+        sets the :class:`Memory`'s index to that value.
         """
         if preserve_prepopulated:
             preserved = {k: v for k, v in self.items() if v._creation == 0}
@@ -268,14 +269,14 @@ class Memory(dict):
         """A list of the attribute names in this ``Memory``'s index.
         If this :class:`Memory` is empty, containing no chunks, this can also be set,
         using the same syntax as in the :class:`Memory` constructor. However, if
-        this ``Memory`` contains chunks and attempt to set the ``index`` will raise
+        this ``Memory`` contains chunks an attempt to set the ``index`` will raise
         a :exc:`RuntimeError`.
         """
         return sorted(self._indexed_attributes)
 
     @index.setter
     def index(self, value):
-        indexed_attributes = Memory._ensure_slot_names(value)
+        indexed_attributes = set(Memory._ensure_slot_names(value))
         if indexed_attributes == self._indexed_attributes:
             return
         if self:
@@ -668,8 +669,8 @@ class Memory(dict):
         printed, and no file is created.
 
         .. warning::
-            This method is intended as a debugging aid, and generally is not suitable for
-            use as a part of models.
+            The :meth:`print_chunks` method is intended as a debugging aid, and generally
+            is not suitable for use as a part of a model.
         """
         if not self:
             return
@@ -771,14 +772,14 @@ class Memory(dict):
             else:
                 names = thing.split()
         else:
-            names = thing
-        result = set()
+            names = list(thing)
+        s = set()
         for n in names:
             Memory._ensure_slot_name(n)
-            if n in result:
+            if n in s:
                 raise ValueError(f"Duplicate attribute name {n}")
-            result.add(n)
-        return result
+            s.add(n)
+        return names
 
     def _ensure_slots(self, slots, learn=False):
         slots = dict(slots)
@@ -1162,7 +1163,7 @@ class Memory(dict):
 
     def discrete_blend(self, outcome_attribute, slots={}):
         """Returns the value for the given attribute of those chunks matching *slots*, that maximizes the aggregate probabilities of retrieval of those chunks.
-        Also returns a second value, a list of 2-tuples mapping the possible values
+        Also returns a second value, a dictionary  mapping the possible values
         of *outcome_attribute* to their probabilities of retrieval.
         Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*.
@@ -1185,7 +1186,7 @@ class Memory(dict):
         >>> m.advance()
         4
         >>> m.discrete_blend("kind", {"age": "old"})
-        ('tilset', [('tilset', 0.9540373563209859), ('limburger', 0.04596264367901423)])
+        ('tilset', {'tilset': 0.9540373563209859, 'limburger': 0.04596264367901423})
         """
         probs, chunks = self._blend(outcome_attribute, slots)
         if not chunks:
@@ -1203,7 +1204,8 @@ class Memory(dict):
                 best_value = v
             elif v == best_value:
                 best.append(k)
-        return random.choice(best), list(candidates.items())
+        return (random.choice(best),
+                dict(sorted(candidates.items(), key=lambda x: x[1], reverse=True)))
 
     def similarity(self, attributes, function=None, weight=None):
         """Assigns a similarity function and/or corresponding weight to be used when comparing attribute values with the given *attributes*.

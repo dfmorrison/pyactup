@@ -6,40 +6,13 @@ is inspired by the ACT-UP cognitive modeling toolbox.
 There is [online documentation of PyACTUp](http://halle.psy.cmu.edu/pyactup/),
 and the [sources](https://bitbucket.org/dfmorrison/pyactup/) are on Bitbucket.
 
-PyACTUp requires Python version 3.8 or later. PyACTUp also works in
-recent versions of PyPy.
+The latest version of PyACTUp can be download and install from PyPi with  ``pip``:
 
-Normally, assuming you are connected to the internet, to install
-PyACTUp you should simply have to type at the command line
+  .. parsed-literal:: pip install pyactup
 
-    pip install pyactup
+Use of a virtual environment for Python, such as ``venv`` or Anaconda is recommended.
 
-Depending upon various possible variations in how Python and your
-machine are configured you may have to modify the above in various
-ways
-
-* you may need to ensure your virtual environment is activated
-* you may need use an alternative scheme your Python IDE supports
-* you may need to call it `pip3` instead of simply `pip`
-* you may need to precede the call to `pip` by `sudo`
-* you may need to use some combination of the above
-
-If you are unable to install PyACTUp as above, you can instead
-download a tarball from
-[bitbucket](https://bitbucket.org/dfmorrison/pyactup/downloads/).
-The tarball will have a filename something like `pyactup-2.0.tar.gz`.
-Assuming this file is at `/some/directory/pyactup-2.0.tar.gz` install
-it by typing at the command line
-
-    pip install /some/directory/pyactup-2.0.tar.gz
-
-Alternatively you can untar the tarball with
-
-    tar -xf /some/directory/pyactup-2.0.tar.gz
-
-and then change to the resulting directory and type
-
-    python setup.py install
+PyACTUp requires Python version 3.8 or later.
 
 PyACTUp is released under the following MIT style license:
 

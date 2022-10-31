@@ -56,16 +56,13 @@ may be required to upgrade projects using the current version of PyACTUp to a la
 Installing PyACTUp
 ==================
 
-PyACTUp requires Python version 3.8 or later. Recent versions of Mac OS X and recent Linux distributions
-are likely to have a suitable version of Python pre-installed, but it may need to be invoked as ``python3``
-instead of just ``python``, which latter often runs a 2.x version of Python instead. Use of a virtual environment,
-which is recommended, often obviates the need for the ``python3``/``python`` distinction.
-If it is not already installed, Python, for Windows, Mac OS X, Linux, or other Unices, can be
-`downloaded from python.org <http://www.python.org/download/>`_, for free.
+The latest version of PyACTUp can be download and install from PyPi with  ``pip``:
 
-PyACTUp also works in recent versions of `PyPy <https://pypy.org/>`_, an alternative implementation to the usual CPython.
-PyPy uses a just-in-time (JIT) compiler, which is a good match for PyACTUp, and PyACTUp models often
-run noticeably faster in PyPy compared to CPython.
+  .. parsed-literal:: pip install pyactup
+
+Use of a virtual environment for Python, such as ``venv`` or Anaconda is recommended.
+
+PyACTUp requires Python version 3.8 or later.
 
 Note that PyACTUp is simply a Python module, a library, that is run as part of a larger
 Python program. To build and run models using PyACTUp you do need to do
@@ -82,38 +79,10 @@ One  is
 which comes packaged with Python itself, so if you installed Python
 you should have it available.
 
-Normally, assuming you are connected to the internet, to install PyACTUp you should simply have to type at the command line
-
-  .. parsed-literal:: pip install pyactup
-
-Depending upon various possible variations in how Python and your machine are configured
-you may have to modify the above in various ways
-
-* you may need to ensure your virtual environment is activated
-
-* you may need use an alternative scheme your Python IDE supports
-
-* you may need to call it ``pip3`` instead of simply ``pip``
-
-* you may need to precede the call to ``pip`` by ``sudo``
-
-* you may need to use some combination of the above
-
-If you are unable to install PyACTUp as above, you can instead
-`download a tarball <https://bitbucket.org/dfmorrison/pyactup/downloads/?tab=downloads>`_.
-The tarball will have a filename something like pyactup-2.0.tar.gz.
-Assuming this file is at ``/some/directory/pyactup-2.0.tar.gz`` install it by typing at the command line
-
-  .. parsed-literal:: pip install /some/directory/pyactup-2.0.tar.gz
-
-Alternatively you can untar the tarball with
-
-  .. parsed-literal:: tar -xf /some/directory/pyactup-2.0.tar.gz
-
-and then change to the resulting directory and type
-
-  .. parsed-literal:: python setup.py install
-
+The PyACTUp sources are available
+at `https://bitbucket.org/dfmorrison/pyactup/ <https://bitbucket.org/dfmorrison/pyactup/>`_.
+This document is also available
+at `http://halle.psy.cmu.edu/pyactup/ <http://halle.psy.cmu.edu/pyactup/>`_.
 
 Mailing List
 ============
@@ -207,13 +176,13 @@ The ``similarity`` method defines how to compute the similarity of values for a 
 it appears in a ``Memory``’s chunks. A function is supplied to this method to be applied to values of the
 attributes of given names, this function returning a similarity value. In addition, the ``similarity`` method
 can assign a weight, :math:`\omega`, to these slots, allowing the mismatch contributions of multiple slots
-to be scaled with respect to one another. If not explicitly supplied this weight defaults to one.
+to be scaled with respect to one another. If not explicitly supplied this weight defaults to one.o
 
 If the ``mismatch`` parameter has real value :math:`\mu`, the similarity of slot *k* of *i* to the desired
-value of that slot in the retrieval is :math:`S_{ik}`, and the similarity weight of slot *i* is :math:`\omega_{i}`,
+value of that slot in the retrieval is :math:`S_{ik}`, and the similarity weight of slot *k* is :math:`\omega_{k}`,
 the partial matching correction is
 
-  .. math:: P_{i} = \mu \sum_{k} \omega_{i} (S_{ik} - 1)
+  .. math:: P_{i} = \mu \sum_{k} \omega_{k} (S_{ik} - 1)
 
 The value of :math:`\mu` is normally positive, so :math:`P_{i}` is normally negative, and increasing dissimilarities
 reduce the total activation, scaled by the value of :math:`\mu`.
@@ -289,8 +258,6 @@ API Reference
    .. automethod:: print_chunks
 
    .. autoattribute:: activation_history
-
-   .. autoattribute:: index
 
    .. automethod:: forget
 

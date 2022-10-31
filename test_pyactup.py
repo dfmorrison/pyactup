@@ -632,10 +632,11 @@ def test_discrete_blend():
                     m.advance()
         b, p = m.discrete_blend("o", {"s": 5})
         assert b == 5
-        assert isclose(dict(p)[3], 0.1526351150445461)
+        assert isclose(p[3], 0.1526351150445461)
+        assert isclose(p[7], 0.07737041353204682)
         b, p = m.discrete_blend("o")
         assert b == 5
-        assert isclose(dict(p)[4], 0.07519141419785559)
+        assert isclose(p[4], 0.07519141419785559)
 
 def test_mixed_slots():
     def run_once(d_ret_u=0, d_ret_a=0, d_ret_m=None,
