@@ -6,11 +6,13 @@ is inspired by the ACT-UP cognitive modeling toolbox.
 There is [online documentation of PyACTUp](http://halle.psy.cmu.edu/pyactup/),
 and the [sources](https://bitbucket.org/dfmorrison/pyactup/) are on Bitbucket.
 
-The latest version of PyACTUp can be download and install from PyPi with  ``pip``:
+The latest version of PyACTUp can be download and install from PyPi with pip:
 
-  .. parsed-literal:: pip install pyactup
+.. parsed-literal::
 
-Use of a virtual environment for Python, such as ``venv`` or Anaconda is recommended.
+    pip install pyactup
+
+Use of a virtual environment for Python, such as venv or Anaconda is recommended.
 
 PyACTUp requires Python version 3.8 or later.
 
