@@ -1,4 +1,4 @@
-PyACTUp version 2.0.1
+PyACTUp version 2.0.2
 *********************
 
 .. toctree::
@@ -519,7 +519,7 @@ The result of running this is
 Changes to PyACTUp
 ==================
 
-Changes between versions 2.0 and 2.0.1
+Changes between versions 2.0 and 2.0.2
 --------------------------------------
 
 * The canonical home for PyACT is now on GitHub instead of Bitbucket.

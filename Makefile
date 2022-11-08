@@ -7,4 +7,4 @@ clean:
 	rm -rf dist/*
 
 upload: dist
-	twine upload -u dfmorrison\
+	twine upload -u dfmorrison dist/*
