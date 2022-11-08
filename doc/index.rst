@@ -1,5 +1,5 @@
-PyACTUp version 2.0
-*******************
+PyACTUp version 2.0.1
+*********************
 
 .. toctree::
    :maxdepth: 3
@@ -80,7 +80,7 @@ which comes packaged with Python itself, so if you installed Python
 you should have it available.
 
 The PyACTUp sources are available
-at `https://bitbucket.org/dfmorrison/pyactup/ <https://bitbucket.org/dfmorrison/pyactup/>`_.
+at `https://github.org/dfmorrison/pyactup/ <https://github.org/dfmorrison/pyactup/>`_.
 This document is also available
 at `http://halle.psy.cmu.edu/pyactup/ <http://halle.psy.cmu.edu/pyactup/>`_.
 
@@ -518,6 +518,12 @@ The result of running this is
 
 Changes to PyACTUp
 ==================
+
+Changes between versions 2.0 and 2.0.1
+--------------------------------------
+
+* The canonical home for PyACT is now on GitHub instead of Bitbucket.
+
 
 .. _upgrading:
 
