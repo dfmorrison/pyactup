@@ -168,11 +168,19 @@ class Memory(dict):
         """Deletes this :class:`Memory`'s chunks and resets its time to zero.
         If *preserve_prepopulated* is ``False`` it deletes all chunks; if it is ``True``
         it deletes all chunk references later than time zero, completely deleting those
-        chunks that were created at a time other than zero. If *index* is supplied it
+        chunks that were created at a time greater than zero. If *index* is supplied it
         sets the :class:`Memory`'s index to that value.
         """
+        if preserve_prepopulated and self._optimized_learning is not None:
+            preserve_prepopulated = False
+            warn("The preserve_prepopulated argument to reset() cannot be used when "
+                 "optimized_learning is on, and is being ignored")
         if preserve_prepopulated:
-            preserved = {k: v for k, v in self.items() if v._creation == 0}
+            preserved = {k: c for k, c in self.items() if c._creation <= 0}
+            for c in preserved.values():
+                c._references = np.array([r for r in c._references[:c._reference_count]
+                                          if r <= 0])
+                c._reference_count = len(c._references)
         self.clear()
         self._slot_name_index.clear()
         self._index.clear()
@@ -182,11 +190,12 @@ class Memory(dict):
         if index is not None:
             self.index = index
         if preserve_prepopulated:
-            for k, v in preserved.items():
-                v._references = np.empty(1, dtype=np.int32) if self._optimized_learning else np.array([0])
-                v._reference_count = 1
-                self[k] = v
-                self._slot_name_index[frozenset(v.keys())].append(v)
+            for k, c in preserved.items():
+                self[k] = c
+                self._slot_name_index[frozenset(c.keys())].append(c)
+                if  self._indexed_attributes:
+                    self._index[Memory._signature(c, "learn", self._indexed_attributes)
+                                ].append(c)
 
     @property
     @contextmanager
@@ -679,7 +688,7 @@ class Memory(dict):
                      "chunk contents": dict(k).__repr__()[1:-1],
                      "chunk created at": c._creation,
                      "chunk reference count": c._reference_count,
-                     "chunk references": Memory._elide_long_list(c._references)}
+                     "chunk references": Memory._elide_long_list(c._references[:c._reference_count])}
                     for k, c in self.items()]
             if pretty:
                 tab = PrettyTable()

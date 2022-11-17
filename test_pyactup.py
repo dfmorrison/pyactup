@@ -3,6 +3,7 @@
 from pyactup import *
 import pyactup
 
+import csv
 import math
 import numpy as np
 import pickle
@@ -11,7 +12,7 @@ import random
 import sys
 
 from math import isclose
-from pprint import pprint
+from pprint import pp
 from timeit import default_timer
 
 def test_parameter_manipulation():
@@ -201,6 +202,22 @@ def test_reset():
     m.learn({"species":"Python", "range":300})
     assert len(m) == 3
     assert m.time == 1
+    m = Memory(index=["d"])
+    m.learn({"d": "right", "a": 0.3, "u": 0.5})
+    m.learn({"d": "left", "a": 0.5, "u": 0.3})
+    m.learn({"d": "right", "a": 0.3, "u": 0.5})
+    m.advance()
+    m.learn({"d": "right", "a": 0.3, "u": 0.5})
+    assert len(m) == 2
+    c = m._index[(("d", "right"),)][0]
+    assert c._creation == 0
+    assert c._reference_count == 3
+    assert list(c._references[:c._reference_count]) == [0, 0, 1]
+    m.reset(True)
+    c = m._index[(("d", "right"),)][0]
+    assert c._creation == 0
+    assert c._reference_count == 2
+    assert list(c._references[:c._reference_count]) == [0, 0]
 
 def test_noise():
     m = Memory()
@@ -449,8 +466,6 @@ def test_blend():
         m.learn({"a":1, "b":1})
         m.learn({"a":2, "b":2})
         m.advance()
-        print(m)
-        print(m.blend("b", {"a":1}))
         assert isclose(m.blend("b", {"a":1}), 1)
         assert isclose(m.blend("b", {"a":2}), 2)
         assert isclose(m.blend("b"), 1.5)
@@ -1057,3 +1072,25 @@ def test_index():
     assert f() < no_index / 4
     m = Memory(index="d")
     assert f() < no_index / 4
+
+def test_print_chunks(tmp_path):
+    m = Memory(index=["d"])
+    m.learn({"d": "right", "a": 0.3, "u": 0.5})
+    m.learn({"d": "left", "a": 0.5, "u": 0.3})
+    m.learn({"d": "right", "a": 0.3, "u": 0.5})
+    m.advance()
+    m.learn({"d": "right", "a": 0.3, "u": 0.5})
+    p = tmp_path / "chunks.csv"
+    m.print_chunks(file=p, pretty=False)
+    with open(p, newline="") as f:
+        r = csv.DictReader(f)
+        entries = [s for s in r]
+    assert len(entries) == 2
+    for line in entries:
+        del line["chunk name"]
+    assert {'chunk contents': "'a': 0.3, 'd': 'right', 'u': 0.5",
+            'chunk created at': '0', 'chunk reference count': '3',
+            'chunk references': '0, 0, 1'} in entries
+    assert {'chunk contents': "'a': 0.5, 'd': 'left', 'u': 0.3",
+            'chunk created at': '0', 'chunk reference count': '1',
+            'chunk references': '0'} in entries
