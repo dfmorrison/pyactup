@@ -1,7 +1,7 @@
 .PHONY: dist clean upload
 
 dist:	clean
-	python -m build -n
+	python setup.py sdist bdist_wheel
 
 clean:
 	rm -rf dist/*
