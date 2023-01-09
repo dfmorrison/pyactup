@@ -6,7 +6,7 @@ is inspired by the ACT-UP cognitive modeling toolbox.
 There is [online documentation of PyACTUp](http://halle.psy.cmu.edu/pyactup/),
 and the [sources](https://github.com/dfmorrison/pyactup/) are on GitHub.
 
-The latest version of PyACTUp can be download and install from PyPi with pip:
+The latest version of PyACTUp can be download and installed from PyPi with pip:
 
     pip install pyactup
 
@@ -16,7 +16,7 @@ PyACTUp requires Python version 3.8 or later.
 
 PyACTUp is released under the following MIT style license:
 
-Copyright (c) 2018-2022 Carnegie Mellon University
+Copyright (c) 2018-2023 Carnegie Mellon University
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this
 software and associated documentation files (the "Software"), to deal in the Software

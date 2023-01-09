@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.0.6"
+__version__ = "2.0.4"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -61,7 +61,7 @@ from prettytable import PrettyTable
 from pylru import lrucache
 from warnings import warn
 
-__all__ = ["--version__", "Memory"]
+__all__ = ["Memory"]
 
 
 DEFAULT_NOISE = 0.25

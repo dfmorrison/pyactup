@@ -1,3 +1,29 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyactup"
+license = {file = "LICENSE"}
+authors = [ { name="Don Morrison", email="dfm2@cmu.edu" } ]
+description = "A lightweight Python implementation of a subset of the ACT-R cognitive architecture’s Declarative Memory"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [ "numpy", "pylru", "prettytable" ]
+classifiers=[ "Intended Audience :: Science/Research",
+              "License :: OSI Approved :: MIT License",
+              "Programming Language :: Python",
+              "Programming Language :: Python :: 3 :: Only",
+              "Programming Language :: Python :: 3.8",
+              "Programming Language :: Python :: 3.9",
+              "Programming Language :: Python :: 3.10",
+              "Programming Language :: Python :: 3.11",
+              "Operating System :: OS Independent" ]
+dynamic = [ "version" ]
+
+[project_urls]
+homepage = "https://github.com/dfmorrison/pyactup/"
+documentation = "http://halle.psy.cmu.edu/pyactup/"
+
+[tool.setuptools.dynamic]
+version = { attr = "pyactup.__version__" }

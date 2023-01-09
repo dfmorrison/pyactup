@@ -1,4 +1,4 @@
-PyACTUp version 2.0.2
+PyACTUp version 2.0.4
 *********************
 
 .. toctree::
@@ -518,6 +518,13 @@ The result of running this is
 
 Changes to PyACTUp
 ==================
+
+Changes between versions 2.0.2 and 2.0.4
+----------------------------------------
+
+* Restructured the build process to be more modern, and updated copyrights and documentation.
+
+
 
 Changes between versions 2.0 and 2.0.2
 --------------------------------------

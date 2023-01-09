@@ -1,7 +1,7 @@
-# Copyright 2018-2022 Carnegie Mellon University
+# Copyright 2018-2023 Carnegie Mellon University
 
-from pyactup import *
 import pyactup
+from pyactup import Memory
 
 import csv
 import math
