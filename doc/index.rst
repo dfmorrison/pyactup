@@ -1,4 +1,4 @@
-PyACTUp version 2.0.8
+PyACTUp version 2.0.9
 *********************
 
 .. toctree::
@@ -82,7 +82,7 @@ you should have it available.
 The PyACTUp sources are available
 at `https://github.org/dfmorrison/pyactup/ <https://github.org/dfmorrison/pyactup/>`_.
 This document is also available
-at `http://halle.psy.cmu.edu/pyactup/ <http://halle.psy.cmu.edu/pyactup/>`_.
+at `http://koalemos.psy.cmu.edu/pyactup/ <http://koalemos.psy.cmu.edu/pyactup/>`_.
 
 Mailing List
 ============
@@ -519,7 +519,7 @@ The result of running this is
 Changes to PyACTUp
 ==================
 
-Changes between versions 2.0.2 and 2.0.8
+Changes between versions 2.0.2 and 2.0.9
 ----------------------------------------
 
 * Adjusted copyrights and documentation.
