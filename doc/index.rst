@@ -525,11 +525,11 @@ The result of running this is
 Changes to PyACTUp
 ==================
 
-Changes between versions 2.0.2 and 2.0.10
+Changes between versions 2.0.2 and 2.0.11
 -----------------------------------------
 
 * Adjusted copyrights and documentation.
-
+* Fixed a bug when attempting to partially match with a mismatch parameter of zero.
 
 
 Changes between versions 2.0 and 2.0.2
