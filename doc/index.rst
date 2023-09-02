@@ -1,12 +1,12 @@
-PyACTUp version 2.0.9
-*********************
+PyACTUp version 2.0.10
+**********************
 
 .. toctree::
    :maxdepth: 3
    :caption: Contents:
 
 .. note::
-    The argument signatures of several common methods have been changed in version 2.0. Existing models
+    The argument signatures of several common methods were changed in version 2.0. Existing models
     written for earlier versions of PyACTUp will need to be updated, typically by making relatively
     simple syntactic changes to the relevant calls. See :ref:`upgrading` for details.
 
@@ -26,8 +26,10 @@ retrieves these chunks or values derived from them at later times. A chunk, a le
 slots or attributes, describing what is learned. Retrievals are driven by matching on the values of these
 attributes. Each Memory object also has a notion of time, a non-negative, real number that is advanced as
 the Memory object is used. Time in PyACTUp is a dimensionless quantity whose interpretation depends upon
-the model or system in which PyACTUp is being used. Note that the likelihood of retrievals does not depend
-upon the actual scale of time used, only on the ratios of the various values.
+the model or system in which PyACTUp is being used. Note that in most cases the likelihood of retrievals does not depend
+upon the actual scale of time used, only on the ratios of the various values, but subtle dependencies
+can ensue when partial matching or other perturbations involving the activation rather than the probability
+of retrieve are used.
 There are also several parameters
 controlling these retrievals that can be configured in a Memory object, and detailed information can
 be extracted from it describing the process it uses in making these retrievals.
@@ -39,7 +41,7 @@ Python programs; it is not a stand alone application.
 Some knowledge of Python programming is essential for using it.
 
 PyACTUp is an ongoing project, and implements only a subset of ACT-R's Declarative Memory.
-As it evolves it is likely that more of the ACT-R architecture will be incorporated into
+As it evolves it is possible that more of the ACT-R architecture will be incorporated into
 it. Such future additions may also change some of the APIs exposed today, and some work
 may be required to upgrade projects using the current version of PyACTUp to a later version.
 
@@ -56,11 +58,12 @@ may be required to upgrade projects using the current version of PyACTUp to a la
 Installing PyACTUp
 ==================
 
-The latest version of PyACTUp can be download and install from PyPi with  ``pip``:
+The latest version of PyACTUp can be downloaded and installed from PyPi with  ``pip``:
 
   .. parsed-literal:: pip install pyactup
 
-Use of a virtual environment for Python, such as ``venv`` or Anaconda is recommended.
+Use of a virtual environment for Python, such as `venv <https://docs.python.org/3.8/library/venv.html>`_
+or `Anaconda <https://www.anaconda.com/>`_ is recommended.
 
 PyACTUp requires Python version 3.8 or later.
 
@@ -120,7 +123,7 @@ are denoted as the various :math:`t_{ij}`.
 
   .. math:: B_{i} = \ln(\sum_{j} t_{ij}^{-d})
 
-If the Memory's ``optimized_learning`` parameter is ``True`` an approximation is used instead, often less taxing of
+If the Memory's ``optimized_learning`` parameter is ``True`` an approximation is used instead, sometimes less taxing of
 computational resources. It is particularly useful if the same chunks are expected to be seen many times, and assumes
 that repeated experiences of the various chunks are distributed roughly evenly over time.
 Instead of using the times of all the past occurrences of *i*, it uses *L*, the amount of time since
@@ -134,6 +137,8 @@ of any older than those approximated using a formula similar to the preceding.
 
 Note that setting the ``decay`` parameter to ``None`` disables the computation of base-level
 activation. That is, the base-level component of the total activation is zero in this case.
+This is different than setting the ``decay`` parameter to zero which still computes the
+base level activation component, albeit using only frequency with no decay over time.
 
 Activation noise
 ~~~~~~~~~~~~~~~~
@@ -164,7 +169,8 @@ When considering chunks in partial retrievals or blending operations attributes 
 function has been defined are treated as exact matches; chunks not matching these attributes are not
 included in the partial retrieval or blending operation.
 
-PyACTUp normally uses a "natural" representation of similarities, where two values being completely similar, identical,
+PyACTUp normally uses a "natural" representation of similarities, where two values being completely similar, typically
+Python ``==``,
 has a value of one; and being completely dissimilar has a value of zero; with various other degrees of similarity being
 positive, real numbers less than one. Traditionally ACT-R instead uses a range of
 similarities with the most dissimilar being a negative number, usually -1, and completely similar being zero.
@@ -193,7 +199,7 @@ Blending
 
 Besides retrieving an existing chunk, it is possible to retrieve an attribute value not present in any instance, a weighted
 average, or blend, of the corresponding attribute values present in a set of existing chunks meeting some criteria.
-Currently only real valued attributes can be blended.
+Typically only real valued attributes are blended.
 
 A parameter, the ``temperature``, or :math:`\tau`, is used in constructing the blended value.
 In PyACTUp the value of this parameter is by default the ``noise`` parameter used for activation noise,
@@ -519,8 +525,8 @@ The result of running this is
 Changes to PyACTUp
 ==================
 
-Changes between versions 2.0.2 and 2.0.9
-----------------------------------------
+Changes between versions 2.0.2 and 2.0.10
+-----------------------------------------
 
 * Adjusted copyrights and documentation.
 
@@ -552,10 +558,10 @@ Changes between versions 1.1.4 and 2.0
   caused difficulties with real models, and sowed confusion. As an intermediate measure
   there is still an advance= keyword argument available in learn().
 * Some operations have been significantly speeded up for models with many chunks
-  and/or rehearsals of those chunks.
+  and/or rehearsals of those chunks, particularly if the new index argument to Memory() is used.
 * General tidying and minor bug fixes.
 
-When upgrading existinig 1.x models to version 2.0 or later some syntactic changes will nearly always have to be made,
+When upgrading existing 1.x models to version 2.0 or later some syntactic changes will nearly always have to be made,
 in particular to calls to :meth:`learn`, :meth:`retrieve` and :meth:`blend`. What in 1.x were expressed (mis)using keyword
 arguments are now passed as a single argument, typically a dictionary. In most cases this simply requires wrapping
 curly braces around the relevant arguments, quote marks around the attribute/slot names, and replacing the equals

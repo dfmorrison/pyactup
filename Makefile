@@ -8,3 +8,4 @@ clean:
 
 upload: dist
 	twine upload -u dfmorrison dist/*
+	scp -r doc/_build/html/* dfm@koalemos.psy.cmu.edu:/var/www/html/pyactup/

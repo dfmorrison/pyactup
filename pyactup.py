@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.0.9"
+__version__ = "2.0.10"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -61,7 +61,7 @@ from prettytable import PrettyTable
 from pylru import lrucache
 from warnings import warn
 
-__all__ = ["--version__", "Memory"]
+__all__ = ["__version__", "Memory"]
 
 
 DEFAULT_NOISE = 0.25
@@ -92,7 +92,7 @@ class Memory(dict):
     saved to and restored from persistent storage, so long as any similarity functions it
     contains are defined at the top level of a module using ``def``. Note that attempts to
     pickle a Memory object containing a similarity function defined as a lambda function,
-    or as an inner function, will cause a :exc:`Exception` to be raised. And note further
+    or as an inner function, will cause an :exc:`Exception` to be raised. And note further
     that pickle only includes the function name in the pickled object, not its definition.
     Also, if the contents of a ``Memory`` object are sufficiently complicated it may be
     necessary to raise Python's recursion limit with
@@ -100,18 +100,18 @@ class Memory(dict):
 
     A common use case for PyACTUp involves all of the chunks in a ``Memory`` having the
     same attributes, and some of those attributes are always used, by matching exactly,
-    not partially, some of those attributes. The ``index``keyword argument declares that
+    not partially, some of those attributes. The ``index`` keyword argument declares that
     such a set of attributes is present, and can result in significant performance
     improvements for models with a *very* large number of chunks. The value of this
     keyword argument should be a list of attribute names. As a convenience, if none of the
-    attribute names contains commas or spaces, a string maybe used instead of a list, the
+    attribute names contain commas or spaces, a string maybe used instead of a list, the
     attribute names being separated by spaces or commas; either spaces or commas must be
     used, not a mixture. For example, both ``index="decision utility"`` and
     ``index="decision,utiliy"`` are equivalent to ``index=["decision", "utility"]``. A
     list of he attributes in a :class:`Memory`'s *index* can be retrieved with the
     :attr:`index` property. If the ``Memory`` is empty, containing no chunks, the *index*
     can be modified by setting that property, but otherwise the *index* cannot be changed
-    after the ``Memory`` was created. `All chunks in a ``Memory`` with an *index* must
+    after the ``Memory`` was created. All chunks in a ``Memory`` with an *index* must
     contain values for all the attributes listed in the *index*; if any are omitted in the
     argument to :meth:`learn` they will be automatically added with a value of ``None``.
 
@@ -211,7 +211,7 @@ class Memory(dict):
             practical.
 
         >>> m = Memory()
-        >>> m.learn(color="red")
+        >>> m.learn({"color": "red"})
         True
         >>> m.advance()
         1
@@ -318,8 +318,8 @@ class Memory(dict):
             While *amount* can be negative, this is rarely appropriate. Backward time can
             easily result in biologically implausible models, and attempts to perform
             retrievals or similar operations at times preceding those at which relevant
-            chunks were created will result in infinite or complex valued base-level
-            activations and raise an :exc:`Exception`.
+            chunks were created or reinforced will result in infinite or complex valued
+            base-level activations and raise an :exc:`Exception`.
         """
         if amount is not None:
             self.time += amount
@@ -338,13 +338,6 @@ class Memory(dict):
             chunks created or reinforced in the future results in failures of attempts to
             retrieve them.
 
-        >>> m = Memory(temperature=1, noise=0)
-        >>> m.learn(size=1)
-        Traceback (most recent call last):
-          File "<stdin>", line 1, in <module>
-        TypeError: learn() got an unexpected keyword argument 'size'
-        >>>
-        >>>
         >>> m = Memory(temperature=1, noise=0)
         >>> m.learn({"size": 1})
         True
@@ -405,12 +398,13 @@ class Memory(dict):
         """Controls the rate at which activation for chunks in memory decay with the passage of time.
         Time in PyACTUp is dimensionless.
         The :attr:`decay` is typically between about 0.1 and 2.0.
-        The default value is 0.5. If zero memory does not decay.
+        The default value is 0.5. If set to zero then memory does not decay.
         If set to ``None`` no base-level activation is computed or used; note that this is
         significantly different than setting it to zero which causes base-level activation
         to still be computed and used, but with no decay.
         Attempting to set it to a negative number raises a :exc:`ValueError`.
-        It must be less one 1 if this memory's :attr:`optimized_learning` parameter is set.
+        If this memory's :attr:`optimized_learning` parameter is true, then :attr:`decay`
+        must be less than one.
         """
         return self._decay
 
@@ -428,7 +422,7 @@ class Memory(dict):
         """The temperature parameter used for blending values.
         If ``None``, the default, the square root of 2 times the value of
         :attr:`noise` will be used. If the temperature is too close to zero, which
-        can also happen if it is ``None`` and the :attr:`noise` is too low, or negative, a
+        can also happen if it is ``None`` and the :attr:`noise` is too low, a
         :exc:`ValueError` is raised.
         """
         return self._temperature_param
@@ -494,8 +488,8 @@ class Memory(dict):
         from the activation.
 
         Attributes for which no similarity function has been defined are always compared
-        exactly, and chunks not matching on this attributes are not included at all in the
-        corresponding partial retrievals or blending operations.
+        exactly, and chunks not matching on these attributes are not included at all in
+        the corresponding partial retrievals or blending operations.
 
         While for the likelihoods of retrieval the values of :attr:`time` are normally
         scale free, not depending upon the magnitudes of :attr:`time`, but rather the
@@ -605,7 +599,7 @@ class Memory(dict):
         As a convenience setting :attr:`activation_history` to ``True`` assigns a fresh,
         empty list as its value.
 
-        If PyACTUp is being using in a loop, the details collected will likely become
+        If PyACTUp is being used in a loop, the details collected will likely become
         voluminous. It is usually best to clear them frequently, such as on each
         iteration.
 
@@ -726,10 +720,10 @@ class Memory(dict):
         Note that after learning one or more chunks, before :meth:`retrieve`,
         :meth:`blend` or similar methods can be called :meth:`advance` must be called,
         lest the chunk(s) learned have infinite activation.
-        Because it is so common to call :meth:`advance` immediately after :meth"`learn`
+        Because it is so common to call :meth:`advance` immediately after :meth:`learn`
         as a convenience if *advance* is not None just before :meth:`learn` returns
-        :meth:`advance` with *advance* as its argument, without an argument if *advance*
-        is ``True``.
+        it calls :meth:`advance` with *advance* as its argument, or without any argument
+        if *advance* is ``True``.
 
         Raises a :exc:`TypeError` if an attempt is made to learn an attribute value that
         is not :class:`Hashable`. Raises a :exc:`ValueError` if no *slots* are provided,
@@ -1001,7 +995,7 @@ class Memory(dict):
         If there is no such matching chunk returns ``None``.
         Normally only retrieves chunks exactly matching the *slots*; if *partial* is
         ``True`` it also retrieves those only approximately matching, using similarity
-        (see :meth:`similarity`) and :attr:`mismatch` to determine closeness
+        (see :meth:`similarity`) and the value of :attr:`mismatch` to determine closeness
         of match.
 
         If *rehearse* is supplied and true it also reinforces this chunk at the current
@@ -1111,7 +1105,8 @@ class Memory(dict):
         none of the values from *iterable* result in blended values of *outcome_attribute*
         then both return values are ``None``.
 
-        This operation is particularly useful for building Instance Based Learning models.
+        This operation is particularly useful for building `Instance Based Learning models
+        <https://www.sciencedirect.com/science/article/abs/pii/S0364021303000314>`_.
 
         For the common case where *iterable* iterates over only the values of a single
         slot the *select_attribute* parameter may be used to simplify the iteration. If
@@ -1231,14 +1226,14 @@ class Memory(dict):
         If ``True`` is supplied as the *function* a default similarity function is used
         that returns one if its two arguments are ``==`` and zero otherwise.
         If only one of *function* or *weight* is supplied, it is changed without
-        changing the other; the initial defaults are ``Treu`` for *function* and ``1``
+        changing the other; the initial defaults are ``True`` for *function* and ``1``
         for *weight*.
         If neither *function* nor *weight* is supplied both are removed, and these
         *attributes* will no longer have an associated similarity computation, and will
         be matched only exactly.
 
         As a convenience, if none of the attribute names contains commas or spaces, a
-        string maybe used instead of a list as the first argument to ``similarity``, the
+        string may be used instead of a list as the first argument to ``similarity``, the
         attribute names being separated by spaces or commas; either spaces or commas must
         be used, not a mixture. For example, both ``"decision utility"`` and
         ``"decision,utiliy"`` are equivalent to ``["decision", "utility"]``.
@@ -1326,7 +1321,8 @@ class Similarity:
     _cache: lrucache = field(default_factory=lambda: lrucache(SIMILARITY_CACHE_SIZE))
 
     def _similarity(self, x, y):
-        # returns a non-positive number that has already been weighted on a per slot basis
+        # returns the mismatch penalty, a non-positive number that has already been
+        # weighted on a per slot basis
         if x == y:
             return 0
         if self._function is True:
