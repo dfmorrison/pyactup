@@ -458,6 +458,27 @@ def test_retrieve_partial():
         assert m.retrieve({"a":3.1}, True)["b"] == "z"
         assert m.retrieve({"a":2.4}, True)["b"] == "y"
 
+def test_activation_history():
+    m = Memory(temperature=1, noise=0)
+    m.learn({"a":1, "b":1})
+    m.learn({"a":2, "b":2})
+    m.advance()
+    assert m.activation_history is None
+    m.activation_history = True
+    assert m.activation_history == []
+    m.activation_history == []
+    m.retrieve({"a":2})
+    assert len(m.activation_history) == 1
+    assert isclose(m.activation_history[0]["base_level_activation"], 0)
+    assert isclose(m.activation_history[0]["activation"], 0)
+    m.advance(10)
+    m.retrieve({"a":2})
+    assert len(m.activation_history) == 2
+    assert isclose(m.activation_history[0]["base_level_activation"], 0)
+    assert isclose(m.activation_history[0]["activation"], 0)
+    assert isclose(m.activation_history[1]["base_level_activation"], -1.1989476363991853)
+    assert isclose(m.activation_history[1]["activation"], -1.1989476363991853)
+
 def test_blend():
     for m in [Memory(temperature=1, noise=0),
               Memory(temperature=1, noise=0, index="a"),

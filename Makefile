@@ -2,6 +2,7 @@
 
 dist:	clean
 	python setup.py sdist bdist_wheel
+	cd doc/ ; make html
 
 clean:
 	rm -rf dist/*
