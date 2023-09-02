@@ -866,7 +866,7 @@ class Memory(dict):
             slot_names = set(slot_names)
             slot_names.add(extra)
         partial_slots = []
-        if partial and self._mismatch:
+        if partial and self._mismatch is not None:
             exact_slots =[]
             for n, v in conditions.items():
                 if s := self._similarities.get(n):

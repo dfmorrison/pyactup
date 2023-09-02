@@ -457,6 +457,17 @@ def test_retrieve_partial():
         assert m.retrieve({"a":3.5}, True)["b"] == "x"
         assert m.retrieve({"a":3.1}, True)["b"] == "z"
         assert m.retrieve({"a":2.4}, True)["b"] == "y"
+    m = Memory(mismatch=0, noise=0, temperature=1)
+    m.similarity(["a"], sim)
+    m.learn({"a":1, "b":"x"})
+    m.learn({"a":2, "b":"y"})
+    m.learn({"a":3, "b":"z"})
+    m.learn({"a":4, "b":"x"})
+    m.advance()
+    many = map(lambda x: x["b"], [m.retrieve({"a":1.1}, True) for i in range(500)])
+    assert "x" in many
+    assert "y" in many
+    assert "z" in many
 
 def test_activation_history():
     m = Memory(temperature=1, noise=0)
