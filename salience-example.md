@@ -31,4 +31,9 @@ a real number. While we have six experiences, there are only four chunks, becaus
     |    0003    |  'h': 1, 'r': 3, 'v': 9 |        5         |           1           |        5         |
     +------------+-------------------------+------------------+-----------------------+------------------+
 
+It’s not clear how valuable the ground truth is here, since blending is so strongly influenced by the
+distribution of experiences, as well as their frequencies and recencies, and the details of any
+similarity functions used, but in the above $v$ is the volume of a circular cylinder of radius $r$
+and height $h$, $r^2h$.
+
 We will compute a blended value for
