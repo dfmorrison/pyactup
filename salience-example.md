@@ -70,14 +70,14 @@ we now compute the blended value of $v$ for $r=2$ and $h=2$, and print the proba
 
 To compute the saliencies of $r$ and $h$ we need the derivative of the similarity function, which is
 
-$$
+$
 \frac{\partial}{\partial x}\xi(x,y) = \left\{
 \matrix{
 \frac{1}{8 \sqrt{x-y}} \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
 \frac{-1}{8 \sqrt{y-x}} \ \ \ \ \ \ \ \ \text{ if $x < y$}\\
 \text{undefined   if $x=y$}}
 \right.
-$$
+$
 
 We can now compute the saliences using equation (7) from ACT-R-saliency-computations-v6.pdf.
 
