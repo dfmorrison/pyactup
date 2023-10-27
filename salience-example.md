@@ -55,7 +55,6 @@ matching mismatch corrections.
     (defvar *data*)
     (setf (chain *m* activation_history) t)
     (let ((bv (chain *m* (blend "v" (plist-hash-table '("r" 2 "h" 2))))))
-      #| delete |# (setf (chain *m* activation_history) (python-eval *bug-kludge*))
       (setf *data* (iter (for tab :in-vector (chain *m* activation_history))
                          (for attrs := (coerce (gethash "attributes" tab) 'list))
                          (collect `(:retrieval-probability ,(gethash "retrieval_probability" tab)
