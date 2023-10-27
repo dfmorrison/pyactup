@@ -144,5 +144,16 @@ For the sorts of similarity functions we use it will be a common occurrence that
 be differentiable over their entire domains; in particular, there is frequently a singularity
 when their two arguments are equal.
 
-To date we’ve dealt with this with a wave of the hand, mumble something about “arbitrary.” But
+To date we’ve dealt with this with a wave of the hand, mumbling something about “arbitrary.” But
 to build it, we need to know what to do in this case.
+
+I’m particularly troubled by one issue, here. I would naïvely expect a small perturbation to a
+value being matched against would not only have a small effect on the blended value, but also
+on the salience of that attribute. But if we adjust the various computations in the above
+example we find
+
+- for matching $r = 0.99$ and $h = 2$ we get a salience of $r$ equal to -3.3239572
+
+- but for $r = 1.01$ and $h = 2$ we get a salience of $r$ equal to +3.8321223
+
+What *should* we be doing at those points where the derivative is not defined?
