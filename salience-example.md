@@ -4,7 +4,7 @@
 
 This is a simple example of salience computation, just to make sure I understand how it works before adding
 it to PyACTUp.
-We use PyACTUp (albeit called from Lisp) to compute the relevant activations.
+We use PyACTUp (albeit called from Lisp) to compute the relevant activations and probabilities of retrieval.
 First we create a small ensemble of chunks, each with three slots, $r$, $h$ and $v$, each holding
 a real number; further, $r$ and $h$ should be less than or equal to 16. While we have six experiences,
 there are only four chunks, because of repetition at different times.
@@ -48,9 +48,7 @@ We will assign $\xi$ as the similarity function for both $r$ and $h$.
 
 Recall that when we defined our PyACTUp memory, we set the noise to zero, and both the blending temperature
 and the mismatch penalty to unity; the decay parameter retains its default value of $0.5$. With these parameters
-we now compute the blended value of $v$ for $r=2$ and $h=2$, and print assorted intermediate data from
-the blending computation. Note that `"activation"` here refers to the total activation including the partial
-matching mismatch corrections.
+we now compute the blended value of $v$ for $r=2$ and $h=2$, and print the probabilities of retrieval.
 
     (defvar *data*)
     (setf (chain *m* activation_history) t)
