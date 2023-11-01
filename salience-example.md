@@ -29,8 +29,9 @@ there are only four chunks, because of repetition at different times.
 
 It’s not clear how valuable the ground truth is here, since blending is so strongly influenced by the
 distribution of experiences, as well as their frequencies and recencies, and the details of any
-similarity functions used, but in the above $v$ is the volume of a circular cylinder of radius $r$
-and height $h$, which is $r^2h$.
+similarity functions used, but in the above $v$ is the volume divided by $pi$ of a circular cylinder of radius $r$
+and height $h$, which is $r^2h$; or, alternatively, the volume of a rectangular prism with a square base of each side of which
+is length $r$ and height $h$.
 
 We will compute a blended value of $v$ for new values of $r$ and $h$. To do this we will use a slightly more
 interesting similarity function than the usual linear one, $\xi(x,y)=1-\sqrt{\frac{|x-y|}{16}}$.
@@ -93,14 +94,29 @@ We can now compute the saliences using equation (7) from ACT-R-saliency-computat
                        (for v :in values)
                        (sum (* (getf x :retrieval-probability) v)))))
         (let* ((derivs (iter (for x :in *data*)
-                             (collect (deriv (getf x attr) target))))
+                             (for d := (deriv (getf x attr) target))
+                             (format t "∂ξ/∂~(~A~)(~A,~A) = ~A~%" attr (getf x attr) target d)
+                             (collect d)))
                (sums (weighted-sum derivs)))
+          (format t "Σ = ~A~2%" sums)
           (weighted-sum (iter (for x :in *data*)
                               (for d :in derivs)
                               (collect (* (getf x :v) (- d sums))))))))
 
-    (format t "~&r salience = ~A, h salience = ~A~%"
+    (format t "~&r salience = ~A, h salience = ~A~2%"
             (salience :r 2) (salience :h 2))
+
+    ∂ξ/∂r(1,2) = -0.125
+    ∂ξ/∂r(3,2) = 0.125
+    ∂ξ/∂r(1,2) = -0.125
+    ∂ξ/∂r(3,2) = 0.125
+    Σ = -0.025601245
+
+    ∂ξ/∂h(1,2) = -0.125
+    ∂ξ/∂h(3,2) = 0.125
+    ∂ξ/∂h(3,2) = 0.125
+    ∂ξ/∂h(1,2) = -0.125
+    Σ = -0.05994267
 
     r salience = 0.7847799, h salience = 0.49861407
 
