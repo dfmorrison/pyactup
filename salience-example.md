@@ -16,9 +16,7 @@ there are only four chunks, because of repetition at different times.
     (iter (for (r h v) :in '((1 1 1) (3 3 27) (1 3 3) (1 1 1) (1 1 1) (3 1 9)))
           (chain *m* (learn (plist-hash-table `("r" ,r "h" ,h "v" ,v))))
           (chain *m* (advance)))
-    (uiop:with-temporary-file (:pathname p)
-      (chain *m* (print_chunks (namestring p)))
-      (format t "~&~A~%" (uiop:read-file-string p)))
+    (chain *m* (print_chunks))
 
     +------------+-------------------------+------------------+-----------------------+------------------+
     | chunk name |      chunk contents     | chunk created at | chunk reference count | chunk references |
