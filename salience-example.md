@@ -1,4 +1,4 @@
-### A Simple Example of Salience for ACT-UP
+### A Simple Example of Salience for ACT-UP *(revised 1 November 2023)*
 
 > We think in generalities, but we live in detail. – Alfred North Whitehead
 
@@ -36,6 +36,7 @@ and height $h$, which is $r^2h$.
 
 We will compute a blended value of $v$ for new values of $r$ and $h$. To do this we will use a slightly more
 interesting similarity function than the usual linear one, $\xi(x,y)=1-\sqrt{\frac{|x-y|}{16}}$.
+Recall that in PyACTUp similarity values by default are between 0 and 1 inclusive, not -1 and 0.
 We use this similarity function not from any principled belief it is somehow “right,” but simply to have
 something to play with that doesn’t have the degenerate derivatives that the common linear similarly
 function does.
@@ -119,7 +120,7 @@ A little more complicated is that these different attributes can also have weigh
 applied to their similarity function values. This was something requested by
 Sterling, which has already proved useful in a project with Coty and a group at Aptima.
 Essentially the mismatch penalty is multiplied by the weight before being applied to
-the attributes similarity value; if not explicitly supplied, weights default to unity,
+the attribute’s similarity value; if not explicitly supplied, weights default to unity,
 giving the usual behavior. How do we work this into equation (7)?
 
 #### Caching
