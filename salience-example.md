@@ -122,57 +122,6 @@ We can now compute the saliences using equation (7) from ACT-R-saliency-computat
 
 So, have I got this right?
 
-Now a few further questions.
-
-#### PyACTUp attributes can take different similarity functions and weights
-
-Different attributes can use completely different similarity functions in PyACTUp.
-I presume this is no problem, we just use the derivative of the correct function
-for each attribute. Is this correct?
-
-A little more complicated is that these different attributes can also have weights
-applied to their similarity function values. This was something requested by
-Sterling, which has already proved useful in a project with Coty and a group at Aptima.
-Essentially the mismatch penalty is multiplied by the weight before being applied to
-the attribute’s similarity value; if not explicitly supplied, weights default to unity,
-giving the usual behavior. How do we work this into equation (7)?
-
-#### Caching
-
-Another feature added at Sterling’s request is caching of similarity values. This depends
-upon the two quite reasonable constraints PyACTUp demans of similarity functions
-
-- that they actually *be* functions, in the sense that whenever called with the same
-  argument values they always return the same function value
-
-- and that they be commutative in their arguments, that is $\xi(y,x) \equiv \xi(x,y)$.
-
-I see no reason that we can’t cache the values of the derivatives of the similarity functions, too, though
-the second consideration above no longer applies to the partial derivative..
-Does anyone else see a problem with this? Whether or not it is valuable is an open question;
-I’m leaning towards doing it just to be symmetrical with the similarity function caching behavior,
-but don’t feel particularly strongly one way or the other.
-
-#### Undefined derivative values
-
-For the sorts of similarity functions we use it will be a common occurrence that they will not
-be differentiable over their entire domains; in particular, there is frequently a singularity
-when their two arguments are equal.
-
-To date we’ve dealt with this with a wave of the hand, mumbling something about “arbitrary.” But
-to build it, we need to know what to do in this case.
-
-I’m particularly troubled by one issue, here. I would naïvely expect a small perturbation to a
-value being matched against would not only have a small effect on the blended value, but also
-on the salience of that attribute. But if we adjust the various computations in the above
-example we find
-
-- for matching $r = 0.99$ and $h = 2$ we get a salience of $r$ equal to -3.3239572
-
-- but for $r = 1.01$ and $h = 2$ we get a salience of $r$ equal to +3.8321223
-
-What *should* we be doing at those points where the derivative is not defined?
-
 #### Linear similarity function
 
 Christian asked me to try this with a simpler, linear similarity function. The
@@ -228,13 +177,109 @@ Note that the saliences are even smaller than with the original similarity funct
 
 We can easily generalize this linear similarity function to $1 - \frac{|x-y|}{\Phi}$, where $\Phi$ is
 any positive real greater than or equal to the largest value we expect $r$ or $h$ to assume. While the
-resulting saliences are not strictly proportional to $1 / \Phi$, it is easy to see that they decrease
+resulting saliences are not strictly proportional to $\frac{1}{\Phi}$, it is easy to see that they decrease
 monotonically as $\Phi$ increases. Here are a few relevant values
 
 | $\Phi$ | $r$ salience | $h$ salience |
 | ------ | ------------ | ------------ |
-|    4   | 1.3378276    | 0.7834339
+|    4   | 1.3378276    | 0.7834339    |
 |    8   | 0.7347419    | 0.4438588    |
 |   16   | 0.38105604   | 0.23550467   |
 |   32   | 0.19351925   | 0.121192105  |
 |  128   | 0.048889175  | 0.030946625  |
+
+Now a few further questions.
+
+#### PyACTUp attributes can take different similarity functions and weights
+
+Different attributes can use completely different similarity functions in PyACTUp.
+I presume this is no problem, we just use the derivative of the correct function
+for each attribute. Is this correct?
+
+A little more complicated is that these different attributes can also have weights
+applied to their similarity function values. This was something requested by
+Sterling, which has already proved useful in a project with Coty and a group at Aptima.
+Essentially the mismatch penalty is multiplied by the weight before being applied to
+the attribute’s similarity value; if not explicitly supplied, weights default to unity,
+giving the usual behavior. How do we work this into equation (7)?
+
+#### Caching
+
+Another feature added at Sterling’s request is caching of similarity values. This depends
+upon the two quite reasonable constraints PyACTUp demans of similarity functions
+
+- that they actually *be* functions, in the sense that whenever called with the same
+  argument values they always return the same function value
+
+- and that they be commutative in their arguments, that is $\xi(y,x) \equiv \xi(x,y)$.
+
+I see no reason that we can’t cache the values of the derivatives of the similarity functions, too, though
+the second consideration above no longer applies to the partial derivative..
+Does anyone else see a problem with this? Whether or not it is valuable is an open question;
+I’m leaning towards doing it just to be symmetrical with the similarity function caching behavior,
+but don’t feel particularly strongly one way or the other.
+
+#### Undefined derivative values
+
+For the sorts of similarity functions we use it will be a common occurrence that they will not
+be differentiable over their entire domains; in particular, there is frequently a singularity
+when their two arguments are equal.
+
+To date we’ve dealt with this with a wave of the hand, mumbling something about “arbitrary.” But
+to build it, we need to know what to do in this case.
+
+I’m particularly troubled by one issue, here. I would naïvely expect a small perturbation to a
+value being matched against would not only have a small effect on the blended value, but also
+on the salience of that attribute. But if we adjust the various computations in the above
+example we find
+
+- for matching $r = 0.99$ and $h = 2$ we get a salience of $r$ equal to -3.3239572
+
+- but for $r = 1.01$ and $h = 2$ we get a salience of $r$ equal to +3.8321223
+
+What *should* we be doing at those points where the derivative is not defined?
+
+#### Correspondence with my naïve notion of “salience”
+
+I’m finding the behavior of this definition of salience somewhat at variance with what
+I would expect from my understanding of the English word “salience,”
+
+- As shown above, as the scaling factor in the linear similarity increases to allow for larger possible values
+of the attributes, the salience decreaes *roughly* proportionally. I would expect salience to be scale free
+in this regard, as it just says “how much does this attribute contribute to the result,” and changing that scaling
+factor doesn’t really change that, does it?
+
+- Even more concerning is the following modification of the above. In the above we computed the value in units the square of
+the linear units we used for $r$ and $h$. Let us instead compute the volume in milliliters, but measure $r$ and $h$ in
+meters. The chunks we create are exactly the same as above, except the values of $v$ are now multiplied by
+one million. Using the linear similarity with $\Phi = 16$ we get saliences for $r$ and $h$ of
+381,056 and 235,504, respectively, both seven orders of magnitude above our original results. This seems
+very wrong to me, I would expect the salience, how important an attribute is to the end result, not to depend
+upon the units used.
+
+I wonder if perhaps the salience defined in ACT-R-saliency-computations-v6.pdf should not be used in its raw
+form, but rather scaled in some manner, perhaps such that the sum of all the attributes’ saliences sum to unity
+or something similar (pun not initially intended)?
+
+#### Nature of the approximation
+
+In trying to work out why the saliences I’ve computed in my example do not have the magnitude
+Christian expected, he pointed out that ACT-R-saliency-computations-v6.pdf explicitly limits
+things to “a special but important special case of linear output similarities.” I’m afraid I
+don’t quite understand what this means.
+
+If it means “linear similarity functions,” then the above shows that that is not the root
+cause of this discrepancy from the expected magnitude of similarities.
+
+If it means “the ground truth value of the value we are blending is guaranteed to be a linear
+combination of the attribute values” (which I believe is believed to be the case for the now
+lost simple example Sterling worked out) then I fail to see why we’d be using blending, anyway.
+Such a problem is typically a simple linear algebra problem. So long as you have as many linearly
+independent (over the attributes) chunks as there are attributes, it’s a solved problem, with
+nothing interesting presented by the timing and so on of experiences. The only case that might
+be interesting is if you have fewer experiences than there are attributes; but typically the
+number of experiences increases significantly, so it seems unlikely that this is a common
+use case. Am I missing something?
+
+If the quote above about “linear output similarities” means something else, then I have no
+further opinion until I understand what it means.
