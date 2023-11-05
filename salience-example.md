@@ -125,7 +125,7 @@ So, have I got this right?
 #### Linear similarity function
 
 Christian asked me to try this with a simpler, linear similarity function. The
-linear cognate to the above similarity function is $1 - \frac{|x-y|}{16}$.
+linear cognate to the above similarity function is $\xi(x,y)=1-\frac{|x-y|}{16}$.
 
     (export-function (lambda (x y)
                        (- 1 (/ (abs (- x y)) 16)))
@@ -175,8 +175,8 @@ Re-running the above salience computation with this new similarity function and 
 
 Note that the saliences are even smaller than with the original similarity function.
 
-We can easily generalize this linear similarity function to $1 - \frac{|x-y|}{\Phi}$, where $\Phi$ is
-any positive real greater than or equal to the largest value we expect $r$ or $h$ to assume. While the
+We can easily generalize this linear similarity function to $\xi(x,y)=1-\frac{|x-y|}{\Phi}$, where $\Phi$ is
+any positive real number greater than or equal to the largest value we expect $r$ or $h$ to assume. While the
 resulting saliences are not strictly proportional to $\frac{1}{\Phi}$, it is easy to see that they decrease
 monotonically as $\Phi$ increases. Here are a few relevant values
 
@@ -249,14 +249,14 @@ of the attributes, the salience decreases *roughly* proportionally. I would expe
 in this regard, as it just says “how much does this attribute contribute to the result,” and changing that scaling
 factor doesn’t really change that, does it?
 
-- Even more concerning is that the salience is proportional to the actual values.
+- Even more concerning is that the salience is proportional to the actual ground truth values.
 Consider the following modification of the above example. In the above we computed the value in units the cube of
 the linear units we used for $r$ and $h$. Let us instead compute the volume in milliliters, but measure $r$ and $h$ in
 meters. The chunks we create are exactly the same as above, except the values of $v$ are now multiplied by
 one million. Using the linear similarity with $\Phi = 16$ we get saliences for $r$ and $h$ of
 381,056 and 235,504, respectively, exactly a million times greater than our original results. This seems
-wrong to me, as I would expect the salience, how important an attribute is to the end result, not to depend
-upon the units used.
+wrong to me, as I would expect the salience of the edge lengths to the volume, how important an attribute is to the end
+result, not to depend upon the units used.
 
 I wonder if perhaps the salience defined in ACT-R-saliency-computations-v6.pdf should not be used in its raw
 form, but rather scaled in some manner, perhaps such that the sum of all the attributes’ saliences sum to unity
@@ -264,18 +264,18 @@ or something similar (pun not initially intended)?
 
 #### Nature of the approximation
 
-In trying to work out why the saliences I’ve computed in my example do not have the magnitude
+In trying to work out why the saliences computed in the above example do not have the magnitude
 Christian expected, he pointed out that ACT-R-saliency-computations-v6.pdf explicitly limits
 things to “a special but important special case of linear output similarities.” I’m afraid I
 don’t quite understand what this means.
 
-If it means “linear similarity functions,” then the above shows that that is not the root
+If “linear output similarities” means “linear similarity functions,” then the above shows that that is not the root
 cause of this discrepancy from the expected magnitude of similarities; indeed, switching to
-linear similarities makes the discrepancy greater.
+linear similarities makes the discrepancy greater than in the original example.
 
 If it means “the ground truth value of the value we are blending is guaranteed to be a linear
 combination of the attribute values” (which I believe is believed to be the case for the now
-lost simple example Sterling worked out) then I fail to see why we’d be using blending, anyway.
+lost simple example Sterling worked out) then I fail to see why we’d be using blending.
 Such a problem is typically a simple linear algebra problem. So long as you have as many linearly
 independent (over the attributes) chunks as there are attributes, it’s a solved problem, with
 nothing interesting presented by the timing and so on of experiences. The only case that might
