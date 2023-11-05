@@ -172,3 +172,70 @@ example we find
 - but for $r = 1.01$ and $h = 2$ we get a salience of $r$ equal to +3.8321223
 
 What *should* we be doing at those points where the derivative is not defined?
+
+#### Linear similarity function
+
+Christian asked me to try this with a simpler, linear similarity function. The
+linear cognate to the above similarity function is $1 - \frac{|x-y|}{16}$.
+
+    (export-function (lambda (x y)
+                       (- 1 (/ (abs (- x y)) 16)))
+                     "sim")
+
+    (chain *m* (similarity '("r" "h") (python-eval "sim")))
+
+Using this we get the probabilities of retrieval and blended value
+
+    ((:RETRIEVAL-PROBABILITY 0.48783004 :R 1 :H 1 :V 1)
+     (:RETRIEVAL-PROBABILITY 0.11374056 :R 3 :H 3 :V 27)
+     (:RETRIEVAL-PROBABILITY 0.14409775 :R 1 :H 3 :V 3)
+     (:RETRIEVAL-PROBABILITY 0.25433162 :R 3 :H 1 :V 9))
+
+    BV = 6.280103
+
+The partial derivative of this similarity function is
+
+```math
+\frac{\partial}{\partial x}\xi(x,y) = \left\{
+\matrix{
+\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
+-\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x < y$}\\
+\text{undefined   if $x=y$}}
+\right.
+\right.
+```
+     (defun deriv (x y)
+      ;; returns nil if x == y
+      (cond ((> x y) (float (/ 1 16)))
+            ((< x y) (- (float (/ 1 16))))))
+
+Re-running the above salience computation with this new similarity function and its partial derivative
+
+    ∂ξ/∂r(1,2) = -0.0625
+    ∂ξ/∂r(3,2) = 0.0625
+    ∂ξ/∂r(1,2) = -0.0625
+    ∂ξ/∂r(3,2) = 0.0625
+    Σ = -0.016490975
+
+    ∂ξ/∂h(1,2) = -0.0625
+    ∂ξ/∂h(3,2) = 0.0625
+    ∂ξ/∂h(3,2) = 0.0625
+    ∂ξ/∂h(1,2) = -0.0625
+    Σ = -0.03027021
+
+    r salience = 0.38105604, h salience = 0.23550467
+
+Note that the saliences are even smaller than with the original similarity function.
+
+We can easily generalize this linear similarity function to $1 - \frac{|x-y|}{\Phi}$, where $\Phi$ is
+any positive real greater than or equal to the largest value we expect $r$ or $h$ to assume. While the
+resulting saliences are not strictly proportional to $1 / \Phi$, it is easy to see that they decrease
+monotonically as $\Phi$ increases. Here are a few relevant values
+
+| $\Psy$ | $r$ salience | $h$ salience |
+| ------ | ------------ | ------------ |
+|    4   | 1.3378276    | 0.7834339
+|    8   | 0.7347419    | 0.4438588    |
+|   16   | 0.38105604   | 0.23550467   |
+|   32   | 0.19351925   | 0.121192105  |
+|  128   | 0.048889175  | 0.030946625  |
