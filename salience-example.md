@@ -249,7 +249,7 @@ of the attributes, the salience decreaes *roughly* proportionally. I would expec
 in this regard, as it just says “how much does this attribute contribute to the result,” and changing that scaling
 factor doesn’t really change that, does it?
 
-- Even more concerning is the following modification of the above. In the above we computed the value in units the square of
+- Even more concerning is the following modification of the above. In the above we computed the value in units the cube of
 the linear units we used for $r$ and $h$. Let us instead compute the volume in milliliters, but measure $r$ and $h$ in
 meters. The chunks we create are exactly the same as above, except the values of $v$ are now multiplied by
 one million. Using the linear similarity with $\Phi = 16$ we get saliences for $r$ and $h$ of
