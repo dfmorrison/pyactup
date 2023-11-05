@@ -202,7 +202,6 @@ The partial derivative of this similarity function is
 -\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x < y$}\\
 \text{undefined   if $x=y$}}
 \right.
-\right.
 ```
      (defun deriv (x y)
       ;; returns nil if x == y
@@ -232,7 +231,7 @@ any positive real greater than or equal to the largest value we expect $r$ or $h
 resulting saliences are not strictly proportional to $1 / \Phi$, it is easy to see that they decrease
 monotonically as $\Phi$ increases. Here are a few relevant values
 
-| $\Psy$ | $r$ salience | $h$ salience |
+| $\Phi$ | $r$ salience | $h$ salience |
 | ------ | ------------ | ------------ |
 |    4   | 1.3378276    | 0.7834339
 |    8   | 0.7347419    | 0.4438588    |
