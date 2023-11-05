@@ -269,7 +269,8 @@ things to “a special but important special case of linear output similarities.
 don’t quite understand what this means.
 
 If it means “linear similarity functions,” then the above shows that that is not the root
-cause of this discrepancy from the expected magnitude of similarities.
+cause of this discrepancy from the expected magnitude of similarities; indeed, switching to
+linear similarities makes the discrepancy greater.
 
 If it means “the ground truth value of the value we are blending is guaranteed to be a linear
 combination of the attribute values” (which I believe is believed to be the case for the now
