@@ -253,7 +253,7 @@ factor doesn’t really change that, does it?
 the linear units we used for $r$ and $h$. Let us instead compute the volume in milliliters, but measure $r$ and $h$ in
 meters. The chunks we create are exactly the same as above, except the values of $v$ are now multiplied by
 one million. Using the linear similarity with $\Phi = 16$ we get saliences for $r$ and $h$ of
-381,056 and 235,504, respectively, both seven orders of magnitude above our original results. This seems
+381,056 and 235,504, respectively, both seven orders of magnitude greater than our original results. This seems
 very wrong to me, I would expect the salience, how important an attribute is to the end result, not to depend
 upon the units used.
 
