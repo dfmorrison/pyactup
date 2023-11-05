@@ -245,16 +245,17 @@ I’m finding the behavior of this definition of salience somewhat at variance w
 I would expect from my understanding of the English word “salience,”
 
 - As shown above, as the scaling factor in the linear similarity increases to allow for larger possible values
-of the attributes, the salience decreaes *roughly* proportionally. I would expect salience to be scale free
+of the attributes, the salience decreases *roughly* proportionally. I would expect salience to be scale free
 in this regard, as it just says “how much does this attribute contribute to the result,” and changing that scaling
 factor doesn’t really change that, does it?
 
-- Even more concerning is the following modification of the above. In the above we computed the value in units the cube of
+- Even more concerning is that the salience is proportional to the actual values.
+Consider the following modification of the above example. In the above we computed the value in units the cube of
 the linear units we used for $r$ and $h$. Let us instead compute the volume in milliliters, but measure $r$ and $h$ in
 meters. The chunks we create are exactly the same as above, except the values of $v$ are now multiplied by
 one million. Using the linear similarity with $\Phi = 16$ we get saliences for $r$ and $h$ of
-381,056 and 235,504, respectively, both seven orders of magnitude greater than our original results. This seems
-very wrong to me, I would expect the salience, how important an attribute is to the end result, not to depend
+381,056 and 235,504, respectively, exactly a million times greater than our original results. This seems
+wrong to me, as I would expect the salience, how important an attribute is to the end result, not to depend
 upon the units used.
 
 I wonder if perhaps the salience defined in ACT-R-saliency-computations-v6.pdf should not be used in its raw
