@@ -1,4 +1,4 @@
-### A Simple Example of Salience for ACT-UP *(revised 1 November 2023)*
+### A Simple Example of Salience for ACT-UP *(revised 6 November 2023)*
 
 > We think in generalities, but we live in detail. – Alfred North Whitehead
 
@@ -73,8 +73,8 @@ To compute the saliencies of $r$ and $h$ we need the derivative of the similarit
 ```math
 \frac{\partial}{\partial x}\xi(x,y) = \left\{
 \matrix{
-\frac{1}{8 \sqrt{x-y}} \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
-\frac{-1}{8 \sqrt{y-x}} \ \ \ \ \ \ \ \ \text{ if $x < y$}\\
+\frac{1}{8 \sqrt{x-y}} \ \ \ \ \ \ \ \ \text{ if $x<y$}\\
+\frac{-1}{8 \sqrt{y-x}} \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
 \text{undefined   if $x=y$}}
 \right.
 ```
@@ -85,8 +85,8 @@ We can now compute the saliences using equation (7) from ACT-R-saliency-computat
       (labels ((result (diff sign)
                  (/ sign (* 8 (sqrt diff)))))
         ;; returns nil if x == y
-        (cond ((> x y) (result (- x y) 1))
-              ((< x y) (result (- y x) -1)))))
+        (cond ((< x y) (result (- x y) 1))
+              ((> x y) (result (- y x) -1)))))
 
     (defun salience (attr target)
       (labels ((weighted-sum (values)
@@ -106,19 +106,19 @@ We can now compute the saliences using equation (7) from ACT-R-saliency-computat
     (format t "~&r salience = ~A, h salience = ~A~2%"
             (salience :r 2) (salience :h 2))
 
-    ∂ξ/∂r(1,2) = -0.125
-    ∂ξ/∂r(3,2) = 0.125
-    ∂ξ/∂r(1,2) = -0.125
-    ∂ξ/∂r(3,2) = 0.125
-    Σ = -0.025601245
+    ∂ξ/∂r(1,2) = 0.125
+    ∂ξ/∂r(3,2) = -0.125
+    ∂ξ/∂r(1,2) = 0.125
+    ∂ξ/∂r(3,2) = -0.125
+    Σ = 0.045828804
 
-    ∂ξ/∂h(1,2) = -0.125
-    ∂ξ/∂h(3,2) = 0.125
-    ∂ξ/∂h(3,2) = 0.125
-    ∂ξ/∂h(1,2) = -0.125
-    Σ = -0.05994267
+    ∂ξ/∂h(1,2) = 0.125
+    ∂ξ/∂h(3,2) = -0.125
+    ∂ξ/∂h(3,2) = -0.125
+    ∂ξ/∂h(1,2) = 0.125
+    Σ = 0.061580867
 
-    r salience = 0.7847799, h salience = 0.49861407
+    r salience = -0.70903337, h salience = -0.42185715
 
 So, have I got this right?
 
@@ -147,33 +147,33 @@ The partial derivative of this similarity function is
 ```math
 \frac{\partial}{\partial x}\xi(x,y) = \left\{
 \matrix{
-\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
--\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x < y$}\\
+\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x<y$}\\
+-\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
 \text{undefined   if $x=y$}}
 \right.
 ```
      (defun deriv (x y)
       ;; returns nil if x == y
-      (cond ((> x y) (float (/ 1 16)))
-            ((< x y) (- (float (/ 1 16))))))
+      (cond ((< x y) (float (/ 1 16)))
+            ((> x y) (- (float (/ 1 16))))))
 
 Re-running the above salience computation with this new similarity function and its partial derivative
 
-    ∂ξ/∂r(1,2) = -0.0625
-    ∂ξ/∂r(3,2) = 0.0625
-    ∂ξ/∂r(1,2) = -0.0625
-    ∂ξ/∂r(3,2) = 0.0625
-    Σ = -0.016490975
+    ∂ξ/∂r(1,2) = 0.0625
+    ∂ξ/∂r(3,2) = -0.0625
+    ∂ξ/∂r(1,2) = 0.0625
+    ∂ξ/∂r(3,2) = -0.0625
+    Σ = 0.016490975
 
-    ∂ξ/∂h(1,2) = -0.0625
-    ∂ξ/∂h(3,2) = 0.0625
-    ∂ξ/∂h(3,2) = 0.0625
-    ∂ξ/∂h(1,2) = -0.0625
-    Σ = -0.03027021
+    ∂ξ/∂h(1,2) = 0.0625
+    ∂ξ/∂h(3,2) = -0.0625
+    ∂ξ/∂h(3,2) = -0.0625
+    ∂ξ/∂h(1,2) = 0.0625
+    Σ = 0.03027021
 
-    r salience = 0.38105604, h salience = 0.23550467
+    r salience = -0.38105604, h salience = -0.23550467
 
-Note that the saliences are even smaller than with the original similarity function.
+Note that the absolute magnitudes of the saliences are even smaller than with the original similarity function.
 
 We can easily generalize this linear similarity function to $\xi(x,y)=1-\frac{|x-y|}{\Phi}$, where $\Phi$ is
 any positive real number greater than or equal to the largest value we expect $r$ or $h$ to assume. While the
@@ -182,11 +182,11 @@ monotonically as $\Phi$ increases. Here are a few relevant values
 
 | $\Phi$ | $r$ salience | $h$ salience |
 | ------ | ------------ | ------------ |
-|    4   | 1.3378276    | 0.7834339    |
-|    8   | 0.7347419    | 0.4438588    |
-|   16   | 0.38105604   | 0.23550467   |
-|   32   | 0.19351925   | 0.121192105  |
-|  128   | 0.048889175  | 0.030946625  |
+|    4   | -1.3378276   | -0.7834339   |
+|    8   | -0.7347419   | -0.4438588   |
+|   16   | -0.38105604  | -0.23550467  |
+|   32   | -0.19351925  | -0.121192105 |
+|  128   | -0.048889175 | -0.030946625 |
 
 Now a few further questions.
 
@@ -258,9 +258,12 @@ one million. Using the linear similarity with $\Phi = 16$ we get saliences for $
 wrong to me, as I would expect the salience of the edge lengths to the volume, how important an attribute is to the end
 result, not to depend upon the units used.
 
+It’s also no clear what the sign of the salience means. As I believe Christian suggested, it might be
+better to take the absolute value of the computed salience?
+
 I wonder if perhaps the salience defined in ACT-R-saliency-computations-v6.pdf should not be used in its raw
-form, but rather scaled in some manner, perhaps such that the sum of all the attributes’ saliences sum to unity
-or something similar (pun not initially intended)?
+form, but rather scaled in some manner, perhaps such that the sum of the absolute values of all the attributes’
+saliences sum to unity or something similar (pun not initially intended)?
 
 #### Nature of the approximation
 
