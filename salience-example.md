@@ -73,7 +73,7 @@ To compute the saliencies of $r$ and $h$ we need the derivative of the similarit
 ```math
 \frac{\partial}{\partial x}\xi(x,y) = \left\{
 \matrix{
-\frac{1}{8 \sqrt{x-y}} \ \ \ \ \ \ \ \ \text{ if $x<y$}\\
+\frac{1}{8 \sqrt{x-y}} \ \ \ \ \ \ \ \ \text{ if $x < y$}\\
 \frac{-1}{8 \sqrt{y-x}} \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
 \text{undefined   if $x=y$}}
 \right.
@@ -147,7 +147,7 @@ The partial derivative of this similarity function is
 ```math
 \frac{\partial}{\partial x}\xi(x,y) = \left\{
 \matrix{
-\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x<y$}\\
+\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x < y$}\\
 -\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
 \text{undefined   if $x=y$}}
 \right.
