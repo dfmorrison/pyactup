@@ -148,8 +148,8 @@ The partial derivative of this similarity function is
 \frac{\partial}{\partial x}\xi(x,y) = \left\{
 \matrix{
 \frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x < y$}\\
--\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
-\text{undefined   if $x=y$}}
+-\frac{1}{16} \ \ \ \ \ \ \ \ \ \ \text{ if $x>y$}\\
+\text{undefined \ \ \ if $x=y$}}
 \right.
 ```
      (defun deriv (x y)
