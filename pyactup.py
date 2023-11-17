@@ -50,6 +50,7 @@ import numpy as np
 import numpy.ma as ma
 import operator
 import random
+import re
 import sys
 
 from dataclasses import dataclass, field
@@ -276,13 +277,13 @@ class Memory(dict):
 
     @property
     def index(self):
-        """A list of the attribute names in this ``Memory``'s index.
+        """A tuple of the attribute names in this ``Memory``'s index.
         If this :class:`Memory` is empty, containing no chunks, this can also be set,
         using the same syntax as in the :class:`Memory` constructor. However, if
         this ``Memory`` contains chunks an attempt to set the ``index`` will raise
         a :exc:`RuntimeError`.
         """
-        return sorted(self._indexed_attributes)
+        return tuple(sorted(self._indexed_attributes))
 
     @index.setter
     def index(self, value):
@@ -771,10 +772,7 @@ class Memory(dict):
         if thing is None:
             return []
         if isinstance(thing, str):
-            if "," in thing:
-                names = [s.strip() for s in thing.split(",")]
-            else:
-                names = thing.split()
+            names = re.split(r"\s*(?:,|\s)\s*", thing.strip())
         else:
             names = list(thing)
         s = set()
@@ -783,7 +781,7 @@ class Memory(dict):
             if n in s:
                 raise ValueError(f"Duplicate attribute name {n}")
             s.add(n)
-        return names
+        return tuple(names)
 
     def _ensure_slots(self, slots, learn=False):
         slots = dict(slots)

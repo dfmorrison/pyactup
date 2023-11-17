@@ -1065,13 +1065,13 @@ def test_index():
         m.index = "a"
     m.index = "b,a"
     m.reset()
-    assert m.index == ["a", "b"]
+    assert m.index == ("a", "b")
     m.index = "a"
-    assert m.index == ["a"]
+    assert m.index == ("a",)
     m = Memory()
-    assert m.index == []
+    assert m.index == ()
     m.index = "a b c"
-    assert m.index == ["a", "b", "c"]
+    assert m.index == ("a", "b", "c")
     m = Memory()
     m.index = ("f 18 6 p h 4 3 r t d j 9 10 w x 8 b q s l 14 17 c 0 "
               "n o 1 e i k a 11 15 2 g 5 v 16 12 7 19 u y m z 13")

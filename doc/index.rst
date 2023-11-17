@@ -1,4 +1,4 @@
-PyACTUp version 2.0.11
+PyACTUp version 2.0.12
 **********************
 
 .. toctree::
@@ -528,15 +528,18 @@ Changes to PyACTUp
 Changes between versions 2.0.2 and 2.0.11
 -----------------------------------------
 
+* The index is now a tuple instead of a list.
+
+Changes between versions 2.0.2 and 2.0.11
+-----------------------------------------
+
 * Adjusted copyrights and documentation.
 * Fixed a bug when attempting to partially match with a mismatch parameter of zero.
-
 
 Changes between versions 2.0 and 2.0.2
 --------------------------------------
 
 * The canonical home for PyACT is now on GitHub instead of Bitbucket.
-
 
 .. _upgrading:
 
