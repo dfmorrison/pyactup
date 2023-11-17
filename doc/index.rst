@@ -539,7 +539,7 @@ Changes between versions 2.0.2 and 2.0.11
 Changes between versions 2.0 and 2.0.2
 --------------------------------------
 
-* The canonical home for PyACT is now on GitHub instead of Bitbucket.
+* The canonical home for PyACTUp is now on GitHub instead of Bitbucket.
 
 .. _upgrading:
 
