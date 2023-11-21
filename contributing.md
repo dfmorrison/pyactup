@@ -1,7 +1,12 @@
 Generally useful adjustments and additions to PyACTUp are welcome. Please clone
-the repository, make a suitable branch, and when finished make merge request on GitHub in the usual way,
+the repository to your own machine, make a suitable branch, and when finished make a pull request (that’s
+the usual term in GitHub, but some  GitHub alternatives use the far clearer term “merge request” which
+is what you’re really doing!) on GitHub in the usual way,
 to ensure review and, if necessary, discussion of your changes.
-Before making a merge request, please ensure
+Please do ***not*** make *any* changes to the `main` branch of this repository—always make a pull request instead;
+in addition, unless there is a compelling reason to do so, please do not push any branches to the
+repository, except for those ready to be merged.
+Before making a pull request, please ensure
 
 - that *all* the unit tests pass
 
