@@ -527,11 +527,13 @@ The result of running this is
 Changes to PyACTUp
 ==================
 
-Changes between versions 2.0.2 and 2.1
---------------------------------------
+Changes between versions 2.0.11 and 2.1
+---------------------------------------
 
-* Added extra_activation method
+* Added the new property extra_activation.
+* Added additional information to the activation_history
 * The index is now a tuple instead of a list.
+* Made some minor improvements to the documentation
 
 Changes between versions 2.0.2 and 2.0.11
 -----------------------------------------

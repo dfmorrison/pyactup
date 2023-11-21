@@ -595,12 +595,6 @@ class Memory(dict):
     def extra_activation(self):
         """A tuple of callables that are called to add additional terms to the activations of chunks.
 
-        .. warning::
-            This requires care in its use or biologically implausible models can easily
-            result. In addition to the ease with which artificial adjustments to the
-            activations can be made with this method, the appropriate magnitudes of
-            activation values depend upon the units in which time is measured.
-
         For advanced purposes it is sometimes useful to add additional terms to chunks'
         activation computations, for example for implementing a constant base level
         offset for one or more chunks, or for implementing spreading activation.
@@ -614,6 +608,12 @@ class Memory(dict):
         Attempting to set a value that is not a callable, an iterable of callables or
         falsey raises an :exc:`RuntimeError` will be raised when it is used in computing
         activations.
+
+        .. warning::
+            The use of extra_activation requires care lest biologically implausible models
+            result. In addition to the ease with which artificial adjustments to the
+            activations can be made with this method, the appropriate magnitudes of
+            activation values depend upon the units in which time is measured.
         """
         return self._extra_activation
 
