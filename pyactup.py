@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.1dev1"
+__version__ = "2.1"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -602,7 +602,7 @@ class Memory(dict):
             activation values depend upon the units in which time is measured.
 
         For advanced purposes it is sometimes useful to add additional terms to chunks'
-        activations computations, for example for implementing a constant base level
+        activation computations, for example for implementing a constant base level
         offset for one or more chunks, or for implementing spreading activation.
         This property can be set to None (or another falsey value) meaning no such
         additional activation is added to any chunks; this is the default. Otherwise it

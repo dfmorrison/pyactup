@@ -8,3 +8,6 @@ build
 .venv-activation-script
 .pyactup
 old-*
+*.pdf
+*.lisp
+*.jpg
