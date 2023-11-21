@@ -469,6 +469,43 @@ def test_retrieve_partial():
     assert "y" in many
     assert "z" in many
 
+def test_extra_activation():
+    m = Memory(temperature=1, noise=0)
+    m.learn({"a":1, "b":1})
+    m.advance()
+    m.learn({"a":2, "b":2})
+    m.advance()
+    assert m.extra_activation is None
+    assert m.retrieve()["a"] == 2
+    m.extra_activation = lambda c: 1 if c["b"] == 1 else 0
+    assert isinstance(m.extra_activation, tuple) and len(m.extra_activation) == 1
+    assert m.retrieve()["a"] == 1
+    m.extra_activation = (lambda c: 1 if c["b"] == 1 else 0,
+                          lambda c: -1 if c["a"] == 1 else 0)
+    assert isinstance(m.extra_activation, tuple) and len(m.extra_activation) == 2
+    assert m.retrieve()["a"] == 2
+    m.extra_activation = [lambda c: 1 if c["b"] == 1 else 0,
+                          lambda c: 1 if c["b"] != 1 else None,
+                          lambda c: -1 if c["a"] == 1 else 0]
+    assert isinstance(m.extra_activation, tuple) and len(m.extra_activation) == 3
+    with pytest.raises(RuntimeError):
+        m.retrieve()
+    m.extra_activation = None
+    assert m.extra_activation is None
+    m.extra_activation = ()
+    assert m.extra_activation is None
+    m.extra_activation = []
+    assert m.extra_activation is None
+    m.extra_activation = False
+    assert m.extra_activation is None
+    assert m.retrieve()["a"] == 2
+    with pytest.raises(ValueError):
+        m.extra_activation = True
+    with pytest.raises(ValueError):
+        m.extra_activation = 1
+    with pytest.raises(ValueError):
+        m.extra_activation = (1,)
+
 def test_activation_history():
     m = Memory(temperature=1, noise=0)
     m.learn({"a":1, "b":1})
@@ -480,15 +517,20 @@ def test_activation_history():
     m.activation_history == []
     m.retrieve({"a":2})
     assert len(m.activation_history) == 1
+    assert isclose(m.activation_history[0]["time"], 1)
     assert isclose(m.activation_history[0]["base_level_activation"], 0)
     assert isclose(m.activation_history[0]["activation"], 0)
     m.advance(10)
+    m.extra_activation = lambda c: -1
     m.retrieve({"a":2})
     assert len(m.activation_history) == 2
+    assert isclose(m.activation_history[0]["time"], 1)
     assert isclose(m.activation_history[0]["base_level_activation"], 0)
     assert isclose(m.activation_history[0]["activation"], 0)
+    assert isclose(m.activation_history[1]["time"], 11)
     assert isclose(m.activation_history[1]["base_level_activation"], -1.1989476363991853)
-    assert isclose(m.activation_history[1]["activation"], -1.1989476363991853)
+    assert isclose(m.activation_history[1]["extra_activation"], -1)
+    assert isclose(m.activation_history[1]["activation"], -2.1989476363991853)
 
 def test_blend():
     for m in [Memory(temperature=1, noise=0),

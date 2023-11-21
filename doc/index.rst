@@ -1,5 +1,5 @@
-PyACTUp version 2.0.12
-**********************
+PyACTUp version 2.1
+*******************
 
 .. toctree::
    :maxdepth: 3
@@ -256,6 +256,8 @@ API Reference
    .. autoattribute:: threshold
 
    .. autoattribute:: optimized_learning
+
+   .. autoattribute:: extra_activation
 
    .. automethod:: similarity
 
@@ -525,9 +527,10 @@ The result of running this is
 Changes to PyACTUp
 ==================
 
-Changes between versions 2.0.2 and 2.0.11
------------------------------------------
+Changes between versions 2.0.2 and 2.1
+--------------------------------------
 
+* Added extra_activation method
 * The index is now a tuple instead of a list.
 
 Changes between versions 2.0.2 and 2.0.11

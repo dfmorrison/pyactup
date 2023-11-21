@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.0.12dev1"
+__version__ = "2.1dev1"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -142,6 +142,7 @@ class Memory(dict):
         self._minimum_similarity = 0
         self._maximum_similarity = 1
         self._similarities = defaultdict(Similarity)
+        self._extra_activation = None
         self.noise = noise
         self.decay = decay
         if temperature is None and not self._validate_temperature(None, noise):
@@ -591,6 +592,49 @@ class Memory(dict):
         self._use_actr_similarity = bool(value)
 
     @property
+    def extra_activation(self):
+        """A tuple of callables that are called to add additional terms to the activations of chunks.
+
+        .. warning::
+            This requires care in its use or biologically implausible models can easily
+            result. In addition to the ease with which artificial adjustments to the
+            activations can be made with this method, the appropriate magnitudes of
+            activation values depend upon the units in which time is measured.
+
+        For advanced purposes it is sometimes useful to add additional terms to chunks'
+        activations computations, for example for implementing a constant base level
+        offset for one or more chunks, or for implementing spreading activation.
+        This property can be set to None (or another falsey value) meaning no such
+        additional activation is added to any chunks; this is the default. Otherwise it
+        should be set to an iterable of callables, each of which should take a single
+        argument, a chunk, and returns a real number. For convenience it may also be set
+        to a single callable, which is equivalent to setting it to a tuple of length one
+        containing that callable.
+
+        Attempting to set a value that is not a callable, an iterable of callables or
+        falsey raises an :exc:`RuntimeError` will be raised when it is used in computing
+        activations.
+        """
+        return self._extra_activation
+
+    @extra_activation.setter
+    def extra_activation(self, value):
+        if not value:
+            self._extra_activation = None
+        elif callable(value):
+            self._extra_activation = (value,)
+        else:
+            try:
+                value = tuple(value)
+                for v in value:
+                    if not callable(v):
+                        raise ValueError()
+            except:
+                raise ValueError(
+                    f"The extra_activation must be either a callable or an iterable of callables ({value})")
+            self._extra_activation = value
+
+    @property
     def activation_history(self):
         """A :class:`MutableSequence`, typically a :class:`list`, into which details of the computations underlying PyACTUp operation are appended.
         If ``None``, the default, no such details are collected.
@@ -620,7 +664,8 @@ class Memory(dict):
         >>> m.blend("size", {"color": "red"})
         4.810539051819914
         >>> pprint(m.activation_history, sort_dicts=False)
-        [{'name': '0005',
+        [{'time': 2,
+          'name': '0005',
           'creation_time': 0,
           'attributes': (('color', 'red'), ('size', 3)),
           'reference_count': 1,
@@ -629,7 +674,8 @@ class Memory(dict):
           'activation_noise': -0.032318983984613185,
           'activation': -0.3788925742645858,
           'retrieval_probability': 0.09473047409004302},
-         {'name': '0006',
+         {'time': 2,
+          'name': '0006',
           'creation_time': 1,
           'attributes': (('color', 'red'), ('size', 5)),
           'reference_count': 1,
@@ -937,7 +983,8 @@ class Memory(dict):
                 if self._activation_history is not None:
                     initial_history_length = len(self._activation_history)
                     for c, r in zip(chunks, result):
-                        self._activation_history.append({"name": c._name,
+                        self._activation_history.append({"time": self.time,
+                                                         "name": c._name,
                                                          "creation_time": c._creation,
                                                          "attributes": tuple(c.items()),
                                                          "reference_count": c.reference_count,
@@ -969,6 +1016,17 @@ class Memory(dict):
                     if self._activation_history is not None:
                         for i, p in zip(count(initial_history_length), penalties):
                             self._activation_history[i]["mismatch"] = p
+                if self._extra_activation is not None:
+                    extra_activations = np.empty((nchunks))
+                    try:
+                        for c, row in zip(chunks, count()):
+                            extra_activations[row] = sum(f(c) for f in self._extra_activation)
+                    except:
+                        raise RuntimeError("Error attempting to compute extra activation values")
+                    result += extra_activations
+                    if self._activation_history is not None:
+                        for i, ea in zip(count(initial_history_length), extra_activations):
+                            self._activation_history[i]["extra_activation"] = ea
                 if self._activation_history is not None:
                     for i, r in zip(count(initial_history_length), result):
                         self._activation_history[i]["activation"] = r
