@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.1"
+__version__ = "2.1.1"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -1329,6 +1329,11 @@ class Memory(dict):
 
 
 class Chunk(dict):
+    """A learned item.
+
+    A chunk acts much like a dictionary, and its slots can be retrieved with the usual
+    `[]` notation, or with `.get()`.
+    """
 
     __slots__ = ["_name", "_memory", "_creation", "_references", "_reference_count" ]
 
@@ -1351,6 +1356,11 @@ class Chunk(dict):
         return f"Chunk-{self._name}"
 
     @property
+    def memory(self):
+        """The :class:`Memory` object that contains this chunk."""
+        return self._memory
+
+    @property
     def reference_count(self):
         """A non-negative integer, the number of times that this :class:`Chunk` has been reinforced.
         """
@@ -1358,15 +1368,15 @@ class Chunk(dict):
 
     @property
     def references(self):
-        """A list of real numbers, the times at which that this :class:`Chunk` has been reinforced.
+        """A tuple of real numbers, the times at which that this :class:`Chunk` has been reinforced.
         If :attr:`optimized_learning` is being used this may be just the most recent
         reinforcements, or an empty list, depending upon the value of
-        :attr:`optimized_learning`
+        :attr:`optimized_learning`.
         """
-        return list(self._references[:(self._reference_count
-                                       if self._memory._optimized_learning is None
-                                       else min(self._reference_count,
-                                                self._memory._optimized_learning))])
+        return tuple(self._references[:(self._reference_count
+                                        if self._memory._optimized_learning is None
+                                        else min(self._reference_count,
+                                                 self._memory._optimized_learning))])
 
 
 @dataclass

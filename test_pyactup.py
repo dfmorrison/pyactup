@@ -286,6 +286,7 @@ def test_decay():
     m.learn({"foo":1})
     m.advance(7)
     c = m.retrieve({"foo":1})
+    assert c.memory is m
     assert isclose(m._activations({})[0][0], 0.6931471805599453)
     m.decay = None
     assert isclose(m._activations({})[0][0], 0.0)
@@ -916,7 +917,7 @@ def test_forget():
         assert len(m) == 2
         assert m.forget({"s":"bar", "n":2}, 2)
         assert len(m) == 1
-        assert m.chunks[0].references == [3]
+        assert m.chunks[0].references == (3,)
         for ol in [True, 1, 2, 1000]:
             m.reset()
             m.optimized_learning = ol
@@ -934,7 +935,7 @@ def test_chunks_and_references():
         m.advance()
         assert len(m.chunks) == 1
         assert m.chunks[0].reference_count == 1
-        assert m.chunks[0].references == [0]
+        assert m.chunks[0].references == (0,)
         m.learn({"n":2})
         m.advance()
         assert len(m.chunks) == 2
@@ -942,16 +943,16 @@ def test_chunks_and_references():
         m.advance()
         assert len(m.chunks) == 2
         assert m.chunks[0].reference_count == 2
-        assert m.chunks[0].references == [0, 2]
+        assert m.chunks[0].references == (0, 2)
         assert m.chunks[1].reference_count == 1
-        assert m.chunks[1].references == [1]
+        assert m.chunks[1].references == (1,)
         m.reset()
         m.optimized_learning = True
         assert len(m.chunks) == 0
         m.learn({"n":1})
         m.advance()
         assert len(m.chunks) == 1
-        assert m.chunks[0].references == []
+        assert m.chunks[0].references == ()
         m.learn({"n":2})
         m.advance()
         assert len(m.chunks) == 2
@@ -959,16 +960,16 @@ def test_chunks_and_references():
         m.advance()
         assert len(m.chunks) == 2
         assert m.chunks[0].reference_count == 2
-        assert m.chunks[0].references == []
+        assert m.chunks[0].references == ()
         assert m.chunks[1].reference_count == 1
-        assert m.chunks[1].references == []
+        assert m.chunks[1].references == ()
         m.reset()
         m.optimized_learning = 1
         assert len(m.chunks) == 0
         m.learn({"n":1})
         m.advance()
         assert len(m.chunks) == 1
-        assert m.chunks[0].references == [0]
+        assert m.chunks[0].references == (0,)
         m.learn({"n":2})
         m.advance()
         assert len(m.chunks) == 2
@@ -976,9 +977,9 @@ def test_chunks_and_references():
         m.advance()
         assert len(m.chunks) == 2
         assert m.chunks[0].reference_count == 2
-        assert m.chunks[0].references == [2]
+        assert m.chunks[0].references == (2,)
         assert m.chunks[1].reference_count == 1
-        assert m.chunks[1].references == [1]
+        assert m.chunks[1].references == (1,)
         def f(ol):
             m.reset()
             m.optimized_learning = ol
@@ -1007,29 +1008,29 @@ def test_chunks_and_references():
             assert m.chunks[1].reference_count == 2
             assert m.chunks[2].reference_count == 1
         f(False)
-        assert m.chunks[2].references == [3]
-        assert m.chunks[0].references == [0, 0, 1, 3, 4, 4, 5, 6, 7]
-        assert m.chunks[1].references == [2, 8]
+        assert m.chunks[2].references == (3,)
+        assert m.chunks[0].references == (0, 0, 1, 3, 4, 4, 5, 6, 7)
+        assert m.chunks[1].references == (2, 8)
         f(True)
-        assert m.chunks[0].references == []
-        assert m.chunks[1].references == []
-        assert m.chunks[2].references == []
+        assert m.chunks[0].references == ()
+        assert m.chunks[1].references == ()
+        assert m.chunks[2].references == ()
         f(5)
-        assert m.chunks[0].references == [4, 4, 5, 6, 7]
-        assert m.chunks[1].references == [2, 8]
-        assert m.chunks[2].references == [3]
+        assert m.chunks[0].references == (4, 4, 5, 6, 7)
+        assert m.chunks[1].references == (2, 8)
+        assert m.chunks[2].references == (3,)
         f(4)
-        assert m.chunks[0].references == [4, 5, 6, 7]
-        assert m.chunks[1].references == [2, 8]
-        assert m.chunks[2].references == [3]
+        assert m.chunks[0].references == (4, 5, 6, 7)
+        assert m.chunks[1].references == (2, 8)
+        assert m.chunks[2].references == (3,)
         f(2)
-        assert m.chunks[0].references == [6, 7]
-        assert m.chunks[1].references == [2, 8]
-        assert m.chunks[2].references == [3]
+        assert m.chunks[0].references == (6, 7)
+        assert m.chunks[1].references == (2, 8)
+        assert m.chunks[2].references == (3,)
         f(1)
-        assert m.chunks[0].references == [7]
-        assert m.chunks[1].references == [8]
-        assert m.chunks[2].references == [3]
+        assert m.chunks[0].references == (7,)
+        assert m.chunks[1].references == (8,)
+        assert m.chunks[2].references == (3,)
 
 def pickle_sim_1(x, y):
     return 1 - abs(x - y) / 100
