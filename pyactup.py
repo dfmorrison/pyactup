@@ -1094,31 +1094,44 @@ class Memory(dict):
             self._cite(result)
         return result
 
-    def _blend(self, outcome_attribute, slots):
+    # TODO normalize saliences
+    # TODO understand better what's actually being done up in blend(), and maybe get rid of psum? Or
+    #      do more of the instance salience computation up in blend()?
+    def _blend(self, outcome_attribute, slots, instance_salience, feature_salience):
         Memory._ensure_slot_name(outcome_attribute)
         activations, chunks, raw = self._activations(self._ensure_slots(slots),
                                                      extra=outcome_attribute)
         if chunks is None:
-            return None, None
+            return None, None, None, None
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             wp = np.exp(activations / self._temperature)
             wp /= np.sum(wp)
-            if self._activation_history is not None:
-                h = self._activation_history
-                # this i malarkey is in case one or more candidates didn't clear the threshold
-                i = len(h) - raw
-                for p, c in zip(wp, chunks):
-                    while h[i]["name"] != c._name:
-                        i += 1
-                        assert i < len(h)
-                    h[i]["retrieval_probability"] = p
-        return wp, chunks
+        if self._activation_history is not None:
+            h = self._activation_history
+            # this i malarkey is in case one or more candidates didn't clear the threshold
+            i = len(h) - raw
+            for p, c in zip(wp, chunks):
+                while h[i]["name"] != c._name:
+                    i += 1
+                    assert i < len(h)
+                h[i]["retrieval_probability"] = p
+        isal = None
+        if instance_salience:
+            vals = np.array([c[outcome_attribute] for c in chunks])
+            psum = np.sum(wp * vals)
+            isal = wp * (vals - psum) / self._temperature
+        fsal = None
+        if feature_salience:
+            pass
+        return wp, chunks, isal, fsal
 
-    def blend(self, outcome_attribute, slots={}):
+    def blend(self, outcome_attribute, slots={}, instance_salience=False, feature_salience=False):
         """Returns a blended value for the given attribute of those chunks matching *slots*, and which contain *outcome_attribute*, and have activations greater than or equal to this Memory's threshold, if any.
         Returns ``None`` if there are no matching chunks that contain
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
         that is not a real number an :exc:`Exception` is raised.
+
+        TODO document salience
 
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":2})
@@ -1136,18 +1149,24 @@ class Memory(dict):
         >>> m.blend("size", {"color":"red"})
         1.221272238515685
         """
-        probs, chunks = self._blend(outcome_attribute, slots)
+        probs, chunks, isal, fsal = self._blend(outcome_attribute, slots,
+                                                instance_salience, feature_salience)
         if chunks is None:
             return None
         with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
             try:
-                return np.average(np.array([c[outcome_attribute] for c in chunks],
-                                           dtype=np.float64),
-                                  weights=probs)
+                result = np.average(np.array([c[outcome_attribute] for c in chunks],
+                                             dtype=np.float64),
+                                    weights=probs)
             except Exception as e:
                 raise RuntimeError(f"Error computing blended value, is perhaps the value "
                                    f"of the {outcome_attribute} slotis  not numeric in "
                                    f"one of the matching chunks? ({e})")
+        if not instance_salience and not feature_salience:
+            return result
+        if instance_salience:
+            isal = {tuple(c.items()): s for c, s in zip(chunks, isal)}
+        return result, isal, fsal
 
     def best_blend(self, outcome_attribute, iterable, select_attribute=None, minimize=False):
         """Returns two values (as a 2-tuple), describing the extreme blended value of the *outcome_attribute* over the values provided by *iterable*.
@@ -1249,7 +1268,7 @@ class Memory(dict):
         >>> m.discrete_blend("kind", {"age": "old"})
         ('tilset', {'tilset': 0.9540373563209859, 'limburger': 0.04596264367901423})
         """
-        probs, chunks = self._blend(outcome_attribute, slots)
+        probs, chunks, isal, fsal = self._blend(outcome_attribute, slots, False, False)
         if not chunks:
             return None, None
         candidates = defaultdict(list)
