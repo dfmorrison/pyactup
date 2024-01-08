@@ -532,6 +532,34 @@ def test_activation_history():
     assert isclose(m.activation_history[1]["base_level_activation"], -1.1989476363991853)
     assert isclose(m.activation_history[1]["extra_activation"], -1)
     assert isclose(m.activation_history[1]["activation"], -2.1989476363991853)
+    def setup_partial(m, fn):
+        m.similarity(["x", "y"], fn)
+        m.learn({"w": 0, "x": 0, "y": 0, "z": 0})
+        m.advance()
+        m.learn({"w": 1, "x": 0.5, "y": 0.3, "z": 0})
+        m.advance()
+        m.learn({"w": 0, "x": 0.2, "y": 0.1, "z": 0})
+        m.advance()
+        m.learn({"w": 1, "x": 0.7, "y": 0.2, "z": 0})
+        m.advance()
+        m.learn({"w": 100, "x": 0, "y": 0, "z": 1})
+        m.advance()
+        m.learn({"w": 100, "x": 0.5, "y": 0.3, "z": 1})
+        m.activation_history = True
+        m.blend("w", {"x": 0.05, "y": 0.05, "z": 0})
+    m = Memory(mismatch=1)
+    setup_partial(m, lambda x, y: 1 - abs(x - y))
+    assert isclose(m.activation_history[0]["similarities"]["x"], 0.95)
+    assert isclose(m.activation_history[0]["similarities"]["y"], 0.95)
+    assert isclose(m.activation_history[3]["similarities"]["x"], 0.35)
+    assert isclose(m.activation_history[3]["similarities"]["y"], 0.85)
+    m = Memory(mismatch=1, use_actr_similarity=True)
+    setup_partial(m, lambda x, y: -abs(x - y))
+    assert isclose(m.activation_history[0]["similarities"]["x"], -0.05)
+    assert isclose(m.activation_history[0]["similarities"]["y"], -0.05)
+    assert isclose(m.activation_history[3]["similarities"]["x"], -0.65)
+    assert isclose(m.activation_history[3]["similarities"]["y"], -0.15)
+
 
 def test_blend():
     for m in [Memory(temperature=1, noise=0),
