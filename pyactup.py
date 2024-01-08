@@ -1011,6 +1011,12 @@ class Memory(dict):
                     penalties = np.empty((nchunks, len(partial_slots)))
                     for c, row in zip(chunks, count()):
                         penalties[row] = [s._similarity(c[n], v) for n, v, s in partial_slots]
+                    if self._activation_history is not None:
+                        offset = 0 if self.use_actr_similarity else 1
+                        for i, pens in zip(count(initial_history_length), penalties):
+                            similarities = {ps[0]: p + offset
+                                            for ps, p in zip(partial_slots, pens)}
+                            self._activation_history[i]["similarities"] = similarities
                     penalties = np.sum(penalties, 1) * self._mismatch
                     result += penalties
                     if self._activation_history is not None:
