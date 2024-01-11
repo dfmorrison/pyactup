@@ -47,7 +47,6 @@ import csv
 import io
 import math
 import numpy as np
-import numpy.ma as ma
 import operator
 import random
 import re
@@ -954,9 +953,9 @@ class Memory(dict):
                                   - self._decay * np.log(ages))
                     else:
                         result = np.empty(nchunks)
-                        counts = ma.masked_all(nchunks)
-                        ages = ma.masked_all(nchunks)
-                        middles = ma.masked_all(nchunks)
+                        counts = np.ma.masked_all(nchunks)
+                        ages = np.ma.masked_all(nchunks)
+                        middles = np.ma.masked_all(nchunks)
                         for c, i in zip(chunks, count()):
                             if c._reference_count <= self._optimized_learning:
                                 result[i] = np.sum((self._time - c._references[0:c._reference_count])
@@ -1040,9 +1039,9 @@ class Memory(dict):
                             self._activation_history[i]["meets_threshold"] = (r >= self._threshold)
                 raw_activations_count = len(result)
                 if self._threshold is not None:
-                    m = ma.masked_less(result, self._threshold)
-                    if ma.is_masked(m):
-                        chunks = ma.array(chunks, mask=ma.getmask(m)).compressed()
+                    m = np.ma.masked_less(result, self._threshold)
+                    if np.ma.is_masked(m):
+                        chunks = np.ma.array(chunks, mask=np.ma.getmask(m)).compressed()
                         result = m.compressed()
             except FloatingPointError as e:
                 raise RuntimeError(f"Error when computing activations, perhaps a chunk's "
