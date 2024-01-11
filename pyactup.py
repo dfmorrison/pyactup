@@ -1178,21 +1178,27 @@ class Memory(dict):
         """
         probs, chunks, isal, fsal = self._blend(outcome_attribute, slots,
                                                 instance_salience, feature_salience)
-        if chunks is None:
-            return None
-        with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
-            try:
-                result = np.average(np.array([c[outcome_attribute] for c in chunks],
-                                             dtype=np.float64),
-                                    weights=probs)
-            except Exception as e:
-                raise RuntimeError(f"Error computing blended value, is perhaps the value "
-                                   f"of the {outcome_attribute} slotis  not numeric in "
-                                   f"one of the matching chunks? ({e})")
+        if chunks is not None:
+            with np.errstate(divide="raise", over="raise", under="ignore", invalid="raise"):
+                try:
+                    result = np.average(np.array([c[outcome_attribute] for c in chunks],
+                                                 dtype=np.float64),
+                                        weights=probs)
+                except Exception as e:
+                    raise RuntimeError(f"Error computing blended value, is perhaps the value "
+                                       f"of the {outcome_attribute} slotis  not numeric in "
+                                       f"one of the matching chunks? ({e})")
+        else:
+            result = None
         if not instance_salience and not feature_salience:
             return result
         if instance_salience:
-            isal = {tuple(c.items()): s for c, s in zip(chunks, isal)}
+            if isal is not None:
+                isal = {tuple(c.items()): s for c, s in zip(chunks, isal)}
+            else:
+                isal = {}
+        if feature_salience and fsal is None:
+            fsal = {}
         return result, isal, fsal
 
     def best_blend(self, outcome_attribute, iterable, select_attribute=None, minimize=False):

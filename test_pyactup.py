@@ -1197,3 +1197,96 @@ def test_print_chunks(tmp_path):
     assert {'chunk contents': "'a': 0.5, 'd': 'left', 'u': 0.3",
             'chunk created at': '0', 'chunk reference count': '1',
             'chunk references': '0'} in entries
+
+def test_salience():
+    def sim(x, y):
+        return 1 - abs(x - y) / 10
+    def deriv(x, y):
+        if x == y:
+            return 0
+        elif x < y:
+            return 0.1
+        else:
+            return -0.1
+    def setup_memory(s, d, w=None, **kwd):
+        m = Memory(temperature=1, noise=0, **kwd)
+        if w:
+            m.similarity(["r", "ρ"], s, 1, d)
+            m.similarity("h", s, derivative=d, weight=w)
+        else:
+            m.similarity("r,h,ρ", s, derivative=d)
+        for (i, j, k) in [(8, 5, 6), (4, 7, 0), (1, 8, 7), (0, 7, 4), (6, 2, 3), (4, 6, 1), (1, 5, 4), (8, 7, 1),
+                          (8, 6, 6), (4, 9, 9), (1, 4, 4), (3, 4, 2), (1, 3, 7), (3, 1, 9), (3, 3, 4), (4, 7, 0),
+                          (7, 1, 9), (3, 5, 4), (3, 6, 7), (6, 9, 6), (3, 4, 2), (3, 5, 1), (9, 4, 9), (7, 8, 5),
+                          (0, 0, 0), (2, 3, 8), (4, 6, 1), (4, 5, 5), (3, 4, 2), (1, 0, 7), (2, 3, 4), (5, 7, 8)]:
+            m.learn({"r": i, "h": j, "ρ": k, "color": "black" if i+j+k % 2 else "gold",
+                     "v": i**2 * j, "a": 2*i * (i + 2*j), "m": k * i**2 * j})
+            m.advance()
+            m.learn({"r": j, "h": k, "ρ": i, "color": "gold" if i+j+k % 2 else "black",
+                     "v": j**2 * k, "a": 2*j * (j + 2*k), "m": i * j**2 * k})
+            m.advance()
+        return m
+    m = setup_memory(sim, deriv, mismatch=1)
+    assert isclose(m.blend("v", {"color": "black"}), 102.52340070823675)
+    assert isclose(m.blend("a", {"color": "gold"}), 149.01302892535938)
+    assert isclose(m.blend("m", {"color": "black"}), 546.7513952899268)
+    bv, d, ignore = m.blend("v", {"color": "black"}, True)
+    assert ignore is None
+    assert isclose(bv, 102.52340070823675)
+    assert isclose(d[(('r', 4), ('h', 5), ('ρ', 5), ('color', 'black'),
+                       ('v', 80), ('a', 112), ('m', 400))],
+                   -0.04447050620336284)
+    assert isclose(d[(('r', 0), ('h', 7), ('ρ', 4), ('color', 'black'),
+                      ('v', 0), ('a', 0), ('m', 0))],
+                   -0.08405181892409157)
+    bv, ignore, d = m.blend("a", {"r":4.5, "h": 7}, feature_salience=True)
+    assert ignore is None
+    assert isclose(bv, 142.32864606979274)
+    assert isclose(d["r"], -0.8879387514283669)
+    assert isclose(d["h"], -0.45996170896264055)
+    bv, inst, feat = m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
+                             instance_salience=True, feature_salience=True)
+    assert isclose(bv, 683.176150736943)
+    assert len(inst) == 28
+    assert isclose(inst[(('r', 6), ('h', 6), ('ρ', 8), ('color', 'gold'),
+                         ('v', 216), ('a', 216), ('m', 1728))], 0.1344501871879563)
+    assert isclose(inst[(('r', 0), ('h', 0), ('ρ', 0), ('color', 'gold'),
+                         ('v', 0), ('a', 0), ('m', 0))], -0.06770244967281028)
+    assert isclose(inst[(('r', 7), ('h', 8), ('ρ', 5), ('color', 'gold'),
+                         ('v', 392), ('a', 322), ('m', 1960))], 0.7550582483322396)
+    assert isclose(feat["r"], -0.9708704581767997)
+    assert isclose(feat["ρ"], -0.23960499460481)
+    m.mismatch = 2
+    bv, inst, feat = m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
+                             instance_salience=True, feature_salience=True)
+    assert isclose(bv, 711.3277138478871)
+    assert len(inst) == 28
+    assert isclose(inst[(('r', 6), ('h', 6), ('ρ', 8), ('color', 'gold'),
+                         ('v', 216), ('a', 216), ('m', 1728))], 0.18392706129913897)
+    assert isclose(feat["r"], -0.9244979288917802)
+    assert isclose(feat["ρ"], -0.38118706624806803)
+    m.threshold = -2
+    bv, inst, feat = m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
+                             instance_salience=True, feature_salience=True)
+    assert isclose(bv, 928.7459840671638)
+    assert len(inst) == 4
+    assert isclose(inst[(('r', 4), ('h', 2), ('ρ', 3), ('color', 'gold'),
+                         ('v', 32), ('a', 64), ('m', 96))], -0.5204062526719364)
+    assert isclose(inst[(('r', 4), ('h', 9), ('ρ', 9), ('color', 'gold'),
+                         ('v', 144), ('a', 176), ('m', 1296))], 0.22615988599645534)
+    assert isclose(inst[(('r', 3), ('h', 4), ('ρ', 2), ('color', 'gold'),
+                         ('v', 36), ('a', 66), ('m', 72))], -0.41623220005499945)
+    assert isclose(inst[(('r', 7), ('h', 8), ('ρ', 5), ('color', 'gold'),
+                         ('v', 392), ('a', 322), ('m', 1960))], 0.7104785667304807)
+    assert isclose(feat["r"], -0.6771428813507683)
+    assert isclose(feat["ρ"], -0.7358515599195121)
+    m.threshold = -1
+    assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
+                   instance_salience=True, feature_salience=True) == (None, {}, {})
+    assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
+                   instance_salience=False, feature_salience=True) == (None, None, {})
+    assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
+                   instance_salience=True, feature_salience=False) == (None, {}, None)
+    assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
+                   instance_salience=False, feature_salience=False) is None
+    # TODO check error conditions and so on
