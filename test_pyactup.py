@@ -1289,4 +1289,5 @@ def test_salience():
                    instance_salience=True, feature_salience=False) == (None, {}, None)
     assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
                    instance_salience=False, feature_salience=False) is None
+    assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9}) is None
     # TODO check error conditions and so on
