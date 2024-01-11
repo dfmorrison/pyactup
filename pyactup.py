@@ -1100,9 +1100,6 @@ class Memory(dict):
             self._cite(result)
         return result
 
-    # TODO normalize saliences
-    # TODO understand better what's actually being done up in blend(), and maybe get rid of psum? Or
-    #      do more of the instance salience computation up in blend()?
     def _blend(self, outcome_attribute, slots, instance_salience, feature_salience):
         Memory._ensure_slot_name(outcome_attribute)
         activations, chunks, raw = self._activations(self._ensure_slots(slots),
@@ -1121,14 +1118,39 @@ class Memory(dict):
                     i += 1
                     assert i < len(h)
                 h[i]["retrieval_probability"] = p
+        def normalize(v):
+            v = np.array(v)
+            norm = np.linalg.norm(v)
+            return v / norm if norm > 0 else v
         isal = None
         if instance_salience:
             vals = np.array([c[outcome_attribute] for c in chunks])
-            psum = np.sum(wp * vals)
-            isal = wp * (vals - psum) / self._temperature
+            isal = normalize(wp * (vals - np.sum(wp * vals)))
+            # If we didn't normalize the results, we would need to divide by temperature:
+            # isal = Memory._normalize(wp * (vals - np.sum(wp * vals)) / self._temperature)
         fsal = None
-        if feature_salience:
-            pass
+        if feature_salience and self._mismatch is not None:
+            pslots = [a for a in slots if self._similarities.get(a)]
+            if self._mismatch != 0:
+                def slot_salience(attr, attrval):
+                    deriv = self._similarities[attr]._derivative
+                    weight = self._similarities[attr]._weight
+                    if not deriv:
+                        raise RuntimeError(f"No derivative defined for {attr} similarities")
+                    dvals = np.array([weight * deriv(c[attr], attrval) for c in chunks])
+                    dsum = np.sum(wp * dvals)
+                    return np.sum(wp * (dvals - dsum) * np.array([c[outcome_attribute]
+                                                                  for c in chunks]))
+                fsal = [slot_salience(a, slots[a]) for a in pslots]
+                # If we didn't normalize the results, we would need to multiply by the
+                # mismatch penalty divided by the blending temperature. Note also, that
+                # doing the division up front could make for loss of precision in this
+                # case, but is unlikely to matter in any realistic use case.
+                # coef = self._mismatch / self._temperature
+                # fsal = [coef * self._slot_salience(a, slots[a]) for a in pslots]
+            else:
+                fsal = [0] * len(pslots)
+            fsal = dict(zip(pslots, normalize(fsal)))
         return wp, chunks, isal, fsal
 
     def blend(self, outcome_attribute, slots={}, instance_salience=False, feature_salience=False):
@@ -1293,8 +1315,9 @@ class Memory(dict):
         return (random.choice(best),
                 dict(sorted(candidates.items(), key=lambda x: x[1], reverse=True)))
 
-    def similarity(self, attributes, function=None, weight=None):
+    def similarity(self, attributes, function=None, weight=None, derivative=None):
         """Assigns a similarity function and/or corresponding weight to be used when comparing attribute values with the given *attributes*.
+        TODO update this to reflect dwrivatve, too.
         The *attributes* should be an :class:`Iterable` of strings, attribute names.
         The *function* should take two arguments, and return a real number between 0 and 1,
         inclusive.
@@ -1337,10 +1360,12 @@ class Memory(dict):
         """
         if function is not None and not (callable(function) or function is True):
             raise ValueError(f"Function {function} is neither callable nor True")
+        if derivative is not None and not callable(derivative):
+            raise(ValueError(f"Derivative {derivative} is not callable"))
         if weight is not None and weight <= 0:
             raise ValueError(f"Similarity weight, {weight}, is not a positive number")
         for a in Memory._ensure_slot_names(attributes):
-            if function is None and weight is None:
+            if function is None and weight is None and derivative is None:
                 if a in self._similarities:
                     del self._similarities[a]
             else:
@@ -1348,6 +1373,8 @@ class Memory(dict):
                 sim._memory = self
                 if function is not None and function != sim._function:
                     sim._function = function
+                if derivative is not None and function != sim._derivative:
+                    sim._derivative = derivative
                 if weight is not None and weight != sim._weight:
                     sim._weight = weight
                 sim._cache.clear()
@@ -1408,6 +1435,7 @@ class Chunk(dict):
 class Similarity:
     _memory: Memory = None
     _function: callable = True
+    _derivative: callable = None
     _weight: float = 1.0
     _cache: lrucache = field(default_factory=lambda: lrucache(SIMILARITY_CACHE_SIZE))
 

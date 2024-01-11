@@ -1,5 +1,5 @@
-PyACTUp version 2.1.1
-*********************
+PyACTUp version 2.2
+*******************
 
 .. toctree::
    :maxdepth: 3
@@ -533,6 +533,13 @@ The result of running this is
 
 Changes to PyACTUp
 ==================
+
+Changes between versions 2.1.1 and 2.2
+--------------------------------------
+
+* Added salience computations.
+* The activation_history now includes similarity values for attributes partially matched.
+
 
 Changes between versions 2.1 and 2.1.1
 --------------------------------------
