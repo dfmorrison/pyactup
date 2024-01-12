@@ -1124,9 +1124,7 @@ class Memory(dict):
         isal = None
         if instance_salience:
             vals = np.array([c[outcome_attribute] for c in chunks])
-            isal = normalize(wp * (vals - np.sum(wp * vals)))
-            # If we didn't normalize the results, we would need to divide by temperature:
-            # isal = Memory._normalize(wp * (vals - np.sum(wp * vals)) / self._temperature)
+            isal = normalize(wp * (vals - np.sum(wp * vals)) / self._temperature)
         fsal = None
         if feature_salience and self._mismatch is not None:
             pslots = [a for a in slots if self._similarities.get(a)]
@@ -1140,13 +1138,10 @@ class Memory(dict):
                     dsum = np.sum(wp * dvals)
                     return np.sum(wp * (dvals - dsum) * np.array([c[outcome_attribute]
                                                                   for c in chunks]))
-                fsal = [slot_salience(a, slots[a]) for a in pslots]
-                # If we didn't normalize the results, we would need to multiply by the
-                # mismatch penalty divided by the blending temperature. Note also, that
-                # doing the division up front could make for loss of precision in this
-                # case, but is unlikely to matter in any realistic use case.
-                # coef = self._mismatch / self._temperature
-                # fsal = [coef * self._slot_salience(a, slots[a]) for a in pslots]
+                # Doing the division up front could make for loss of precision
+                # but this is unlikely to matter in any realistic use case.
+                coef = self._mismatch / self._temperature
+                fsal = [coef * slot_salience(a, slots[a]) for a in pslots]
             else:
                 fsal = [0] * len(pslots)
             fsal = dict(zip(pslots, normalize(fsal)))
