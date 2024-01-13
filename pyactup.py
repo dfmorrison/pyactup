@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.2dev1"
+__version__ = "2.2"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -213,7 +213,7 @@ class Memory(dict):
 
         >>> m = Memory()
         >>> m.learn({"color": "red"})
-        True
+        <Chunk 0000 {'color': 'red'} 1>
         >>> m.advance()
         1
         >>> m.activation_history = []
@@ -341,11 +341,11 @@ class Memory(dict):
 
         >>> m = Memory(temperature=1, noise=0)
         >>> m.learn({"size": 1})
-        True
+        <Chunk 0000 {'size': 1} 1>
         >>> m.advance(10)
         10
         >>> m.learn({"size": 10})
-        True
+        <Chunk 0001 {'size': 10} 1>
         >>> m.advance()
         11
         >>> m.blend("size")
@@ -652,11 +652,11 @@ class Memory(dict):
 
         >>> m = Memory()
         >>> m.learn({"color": "red", "size": 3})
-        True
+        <Chunk 0005 {'color': 'red', 'size': 3} 1>
         >>> m.advance()
         1
         >>> m.learn({"color": "red", "size": 5})
-        True
+        <Chunk 0006 {'color': 'red', 'size': 5} 1>
         >>> m.advance()
         2
         >>> m.activation_history = []
@@ -683,7 +683,6 @@ class Memory(dict):
           'activation_noise': 0.4191470689622754,
           'activation': 0.4191470689622754,
           'retrieval_probability': 0.905269525909957}]
-
         """
         return self._activation_history
 
@@ -777,16 +776,16 @@ class Memory(dict):
 
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":4})
-        True
+        <Chunk 0000 {'color': 'red', 'size': 4} 1>
         >>> m.advance()
         1
         >>> m.learn({"color":"blue", "size":4}, advance=1)
+        <Chunk 0001 {'color': 'blue', 'size': 4} 1>
+        >>> m.learn({"color":"red", "size":4}) is None
         True
-        >>> m.learn({"color":"red", "size":4})
-        False
         >>> m.advance()
         3
-        >>> m.retrieve({"color": "red"})
+        >>>
         <Chunk 0000 {'color': 'red', 'size': 4} 2>
         """
         slots = self._ensure_slots(slots, True)
@@ -1070,11 +1069,11 @@ class Memory(dict):
 
         >>> m = Memory()
         >>> m.learn({"widget":"thromdibulator", "color":"red", "size":2})
-        True
+        <Chunk 0000 {'widget': 'thromdibulator', 'color': 'red', 'size': 2} 1>
         >>> m.advance()
         1
         >>> m.learn({"widget":"snackleizer", "color":"blue", "size":1})
-        True
+        <Chunk 0001 {'widget': 'snackleizer', 'color': 'blue', 'size': 1} 1>
         >>> m.advance()
         2
         >>> m.retrieve({"color":"blue"})["widget"]
@@ -1153,23 +1152,44 @@ class Memory(dict):
         *outcome_attribute*. If any matching chunk has a value of *outcome_attribute*
         that is not a real number an :exc:`Exception` is raised.
 
-        TODO document salience
+        If neither ``instance_salience`` nor ``feature_salience`` is true, the sole return
+        value is the blended value; otherwise a tuple of three values is returned. The
+        first the blended value. If ``instance_salience`` is true the second is a dict
+        mapping a descriptions of the slot values of each of the matched chunks that
+        contributed to the blended value to the normalized instance salience value, a real
+        number between -1 and 1, inclusive; otherwise the second value is ``None``. The
+        slot representation of slot values in this dict is a tuple of tuples, the inner
+        tuples being the slot name and value.
+
+        If ``feature_salience`` is true the third value is a dict mapping slot names,
+        corresponding to those slots that were partially matched in this blending
+        operation, to their normalized feature salience values, a real number between -1
+        and 1, inclusive; otherwise the third value is ``None``. To compute feature
+        salience a derivative of the similarity function must have been specified for
+        every partially match slot using :meth:`similarity`; if any are missing a
+        :exc:`RuntimeError`` is raised.
 
         >>> m = Memory()
         >>> m.learn({"color":"red", "size":2})
-        True
+        <Chunk 0000 {'color': 'red', 'size': 2} 1>
         >>> m.advance()
         1
         >>> m.learn({"color":"blue", "size":30})
-        True
+        <Chunk 0001 {'color': 'blue', 'size': 30} 1>
         >>> m.advance()
         2
         >>> m.learn({"color":"red", "size":1})
-        True
+        <Chunk 0002 {'color': 'red', 'size': 1} 1>
         >>> m.advance()
         3
         >>> m.blend("size", {"color":"red"})
-        1.221272238515685
+        1.3660254037844388
+        >>> m.blend("size", {"color":"red"}, instance_salience=True)
+        (1.3660254037844388,
+         {(('color', 'red'), ('size', 2)): 0.7071067811865472,
+          (('color', 'red'), ('size', 1)): -0.7071067811865478},
+         None)
+
         """
         probs, chunks, isal, fsal = self._blend(outcome_attribute, slots,
                                                 instance_salience, feature_salience)
@@ -1181,7 +1201,7 @@ class Memory(dict):
                                         weights=probs)
                 except Exception as e:
                     raise RuntimeError(f"Error computing blended value, is perhaps the value "
-                                       f"of the {outcome_attribute} slotis  not numeric in "
+                                       f"of the {outcome_attribute} slotis not numeric in "
                                        f"one of the matching chunks? ({e})")
         else:
             result = None
@@ -1220,25 +1240,25 @@ class Memory(dict):
 
         >>> m = Memory()
         >>> m.learn({"color":"red", "utility":1})
-        True
+        <Chunk 0000 {'color': 'red', 'utility': 1} 1>
         >>> m.advance()
         1
         >>> m.learn({"color":"blue", "utility":2})
-        True
+        <Chunk 0001 {'color': 'blue', 'utility': 2} 1>
         >>> m.advance()
         2
         >>> m.learn({"color":"red", "utility":1.8})
-        True
+        <Chunk 0002 {'color': 'red', 'utility': 1.8} 1>
         >>> m.advance()
         3
         >>> m.learn({"color":"blue", "utility":0.9})
-        True
+        <Chunk 0003 {'color': 'blue', 'utility': 0.9} 1>
         >>> m.advance()
         4
         >>> m.best_blend("utility", ({"color": c} for c in ("red", "blue")))
         ({'color': 'blue'}, 1.5149259914576285)
         >>> m.learn({"color":"blue", "utility":-1})
-        True
+        <Chunk 0004 {'color': 'blue', 'utility': -1} 1>
         >>> m.advance()
         5
         >>> m.best_blend("utility", ("red", "blue"), "color")
@@ -1278,19 +1298,18 @@ class Memory(dict):
 
         >>> m = Memory()
         >>> m.learn({"kind": "tilset", "age": "old"})
-        True
+        <Chunk 0000 {'kind': 'tilset', 'age': 'old'} 1>
         >>> m.advance()
         1
         >>> m.learn({"kind": "limburger", "age": "old"})
-        True
+        <Chunk 0001 {'kind': 'limburger', 'age': 'old'} 1>
         >>> m.advance()
         2
         >>> m.learn({"kind": "tilset", "age": "old"})
-        False
         >>> m.advance()
         3
         >>> m.learn({"kind": "tilset", "age": "new"})
-        True
+        <Chunk 0002 {'kind': 'tilset', 'age': 'new'} 1>
         >>> m.advance()
         4
         >>> m.discrete_blend("kind", {"age": "old"})
@@ -1317,7 +1336,6 @@ class Memory(dict):
 
     def similarity(self, attributes, function=None, weight=None, derivative=None):
         """Assigns a similarity function and/or corresponding weight to be used when comparing attribute values with the given *attributes*.
-        TODO update this to reflect dwrivatve, too.
         The *attributes* should be an :class:`Iterable` of strings, attribute names.
         The *function* should take two arguments, and return a real number between 0 and 1,
         inclusive.
@@ -1329,12 +1347,23 @@ class Memory(dict):
         will, in most cases, be meaningless if they are.
         If ``True`` is supplied as the *function* a default similarity function is used
         that returns one if its two arguments are ``==`` and zero otherwise.
-        If only one of *function* or *weight* is supplied, it is changed without
-        changing the other; the initial defaults are ``True`` for *function* and ``1``
-        for *weight*.
-        If neither *function* nor *weight* is supplied both are removed, and these
-        *attributes* will no longer have an associated similarity computation, and will
-        be matched only exactly.
+
+        If *derivative* is supplied it should be a callable, the first partial derivative
+        of the similarity function with respect to its first argument, and will be used
+        if the feature saliences are requested in :meth:`blend`. The *derivative* must
+        be defined for all values that may occur for the relevant slots. It is common
+        that the strict mathematical derivative may not exists for one or a small number
+        of possibly values, most commonly when the similarly involves the absolute value
+        of the difference between the two arguments of the similarly function. Even in
+        these cases the argument to :meth:`similarity` should return a value; often zero
+        is a good choice in these cases.
+
+        If only one or two of *function*, *weight* and *derivatve* are supplied, they
+        changed without changing those not supplied; the initial defaults are ``True`` for
+        *function*, ``1`` for *weight*, and ``None`` for *derivative*. If none
+        of*function*, *weight* nor *derivative* are supplied all are removed, and these
+        *attributes* will no longer have an associated similarity computation, and will be
+        matched only exactly.
 
         As a convenience, if none of the attribute names contains commas or spaces, a
         string may be used instead of a list as the first argument to ``similarity``, the
@@ -1356,7 +1385,6 @@ class Memory(dict):
         ...         return f(y, x)
         ...     return 1 - (y - x) / y
         >>> similarity(["length", "width"], f, weight=2)
-
         """
         if function is not None and not (callable(function) or function is True):
             raise ValueError(f"Function {function} is neither callable nor True")

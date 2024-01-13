@@ -107,7 +107,7 @@ matches the specifications of what is to be retrieved.
 The activation, :math:`A_{i}` of chunk *i* is a sum of three
 components,
 
-  .. math:: A_{i} = B_{i} + \epsilon_{i} + P_{i}
+  .. math:: A_{i} = B_{i} + \epsilon_{i} + p_{i}
 
 the base-level activation, the activation noise, and the partial matching correction.
 
@@ -188,9 +188,9 @@ If the ``mismatch`` parameter has real value :math:`\mu`, the similarity of slot
 value of that slot in the retrieval is :math:`S_{ik}`, and the similarity weight of slot *k* is :math:`\omega_{k}`,
 the partial matching correction is
 
-  .. math:: P_{i} = \mu \sum_{k} \omega_{k} (S_{ik} - 1)
+  .. math:: p_{i} = \mu \sum_{k} \omega_{k} (S_{ik} - 1)
 
-The value of :math:`\mu` is normally positive, so :math:`P_{i}` is normally negative, and increasing dissimilarities
+The value of :math:`\mu` is normally positive, so :math:`p_{i}` is normally negative, and increasing dissimilarities
 reduce the total activation, scaled by the value of :math:`\mu`.
 
 
@@ -211,15 +211,56 @@ makes to the blended value
 
   .. math:: w_{i} = e^{a_{i} / \tau}
 
+From these weights we compute a probability of retrieval, :math:`P_{i}` of chunk :math:`i`
+
+  .. math:: P_{i} = \frac{w_{i}}{\sum_{j \in m}{w_{j}}}
+
 If :math:`s_{i}` is the value of the slot or attribute of chunk *i* to be blended over,
 the  blended value, *BV*, is then
 
-  .. math:: BV =\, \sum_{i \in m}{\, \frac{w_{i}}{\sum_{j \in m}{w_{j}}} \; s_{i}}
+  .. math:: BV =\, \sum_{i \in m}{P_{i} s_{i}}
 
 It is also possible to perform a discrete blending operation where an exisiting slot value is
 returned, albeit one possibly not appearing an any chunk that directly matches the criteria,
 it instead resulting from a blending operation using the same weights as above.
 
+Instance Salience
+-----------------
+
+When blending it is possible to create a measure of how relevant each chunk consulted
+is to the final result, the instance salience. If :math:`v_{k}` is the value of the
+output attribute in chunk :math:`k`, then we compute a raw instance salience, :math:`\mathcal{I}_{i}`,
+of chunk :math:`i` as
+
+  .. math:: \mathcal{I}_{i} = \frac{1}{\tau} P_{i} (v_{i} - \sum_{j \in m}{P_{j} v_{j}})
+
+These are normalized to the instance salience values reported, :math:`I_{i}`, by dividing them
+by the Euclidean norm of the all the raw values
+
+  .. math:: I_{i} = \frac{\mathcal{I}_{i}}{\sqrt{\sum_{j \in m}{\mathcal{I}^{2}_{j}}})}
+
+These normalized values are always between -1 and 1, inclusive.
+
+Feature Salience
+----------------
+
+When blending it is possible to create a measure of how relevant each partially matched
+slot in the chunks consulted is to the final result, the feature salience. For this
+computation the first partial derivative of the similarity function with respect to
+its first argument is needed. If :math:`S_{k}(x, y)` is the similarity function for slot
+:math:`k`, if :math:`v_{ik}` is the desired value of this slot,
+if :math:`v_{ik}` is the value of this slot in chunk :math:`i`, and if
+:math:`\mathbf{v}_{i}` is the value of the output slot in this chunk, then
+we compute a raw feature salience, :math:`\mathcal{F}_{i}`, of chunk :math:`i` as
+
+  .. math:: \mathcal{F}_{k} = \frac{\mu}{\tau} \; \sum_{i \in m}{P_{i} \left(\frac{\partial S_{k}}{\partial x}(s_{k}, v_{ik}) - \sum_{j \in m}{P_{j} \; \frac{\partial S_{k}}{\partial x}(s_{k}, v_{jk})}\right)} \mathbf{v}_{i}
+
+These are normalized to the feature salience values reported, :math:`F_{i}`, by dividing them
+by the Euclidean norm of the all the raw values
+
+  .. math:: F_{i} = \frac{\mathcal{F}_{i}}{\sqrt{\sum_{j \in m}{\mathcal{F}^{2}_{j}}})}
+
+These normalized values are always between -1 and 1, inclusive.
 
 
 API Reference

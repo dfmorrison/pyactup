@@ -1,11 +1,14 @@
-.PHONY: dist clean upload
+.PHONY: dist clean doc upload
 
-dist:	clean
+dist:	clean doc
 	python setup.py sdist bdist_wheel
-	cd doc/ ; make html
+
 
 clean:
 	rm -rf dist/*
+
+doc:
+	cd doc/ ; make html
 
 upload: dist
 	twine upload -u __token__ dist/*
