@@ -1320,6 +1320,7 @@ def test_salience():
                          ('v', 392), ('a', 322), ('m', 1960))], 0.7104785667304807)
     assert isclose(feat["r"], -0.6771428813507683)
     assert isclose(feat["ρ"], -0.7358515599195121)
+
     m.threshold = -1
     assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
                    instance_salience=True, feature_salience=True) == (None, {}, {})
@@ -1330,6 +1331,31 @@ def test_salience():
     assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9},
                    instance_salience=False, feature_salience=False) is None
     assert m.blend("m", {"color": "gold", "r": 3, "ρ": 8.9}) is None
+
+    bv, inst, feat = m.blend("m", {"color": "black", "r": 3, "ρ": 8.9},
+                             instance_salience=True, feature_salience=True)
+    assert isclose(bv, 1400)
+    assert len(inst) == 1
+    assert isclose(inst[(('r', 5), ('h', 7), ('ρ', 8), ('color', 'black'),
+                         ('v', 175), ('a', 190), ('m', 1400))], 0)
+    assert isclose(feat["r"], 0)
+    assert isclose(feat["ρ"], 0)
+
+    m = Memory(mismatch=1)
+    m.learn({"x": 1})
+    m.advance()
+    bv, inst, feat = m.blend("x", instance_salience=True, feature_salience=True)
+    assert isclose(bv, 1)
+    assert len(inst) == 1
+    assert isclose(inst[(("x", 1),)], 0)
+    assert feat == {}
+    for i in range(1000):
+        m.learn({"x": 1})
+        m.advance()
+    assert isclose(bv, 1)
+    assert len(inst) == 1
+    assert isclose(inst[(("x", 1),)], 0)
+    assert feat == {}
 
     m = setup_memory(sim, deriv, w=3, mismatch=0.7)
     bv, inst, feat = m.blend("m", {"ρ": 5.3},
@@ -1388,6 +1414,3 @@ def test_salience():
         m.blend("a", {"r": 6, "h": 6}, feature_salience=True)
     with pytest.raises(RuntimeError):
         m.blend("a", {"r": 6, "h": 6}, True, True)
-
-
-    # TODO check error conditions and so on
