@@ -15,9 +15,10 @@ PyACTUp version 2.2.1
 Introduction
 ============
 
-PyACTUp is a lightweight Python implementation of a subset of the ACT-R  [#f1]_ cognitive architecture’s Declarative Memory,
-suitable for incorporating into other Python models and applications. Its creation was inspired by the ACT-UP [#f2]_ cognitive
-modeling toolbox.
+PyACTUp is a lightweight Python implementation of a subset of the
+ACT-R [#f1]_ cognitive architecture’s Declarative Memory, suitable for
+incorporating into other Python models and applications. Its creation
+was inspired by the ACT-UP [#f2]_ cognitive modeling toolbox.
 
 Typically PyACTUp is used by creating an experimental framework, or connecting to an existing experiment,
 in the Python programming language, using one or more PyACTUp :class:`Memory` objects. The framework
@@ -29,7 +30,7 @@ the Memory object is used. Time in PyACTUp is a dimensionless quantity whose int
 the model or system in which PyACTUp is being used. Note that in most cases the likelihood of retrievals does not depend
 upon the actual scale of time used, only on the ratios of the various values, but subtle dependencies
 can ensue when partial matching or other perturbations involving the activation rather than the probability
-of retrieve are used.
+of retrieval are used.
 There are also several parameters
 controlling these retrievals that can be configured in a Memory object, and detailed information can
 be extracted from it describing the process it uses in making these retrievals.
