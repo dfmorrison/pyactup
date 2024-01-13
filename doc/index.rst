@@ -1,5 +1,5 @@
-PyACTUp version 2.2
-*******************
+PyACTUp version 2.2.1
+*********************
 
 .. toctree::
    :maxdepth: 3
@@ -574,6 +574,11 @@ The result of running this is
 
 Changes to PyACTUp
 ==================
+
+Changes between versions 2.2 and 2.2.1
+--------------------------------------
+
+* Updated copyright notices.
 
 Changes between versions 2.1.1 and 2.2
 --------------------------------------

@@ -16,7 +16,7 @@ PyACTUp requires Python version 3.8 or later.
 
 PyACTUp is released under the following MIT style license:
 
-Copyright (c) 2018-2023 Carnegie Mellon University
+Copyright (c) 2018-2024 Carnegie Mellon University
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this
 software and associated documentation files (the "Software"), to deal in the Software

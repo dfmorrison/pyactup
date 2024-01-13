@@ -1,4 +1,4 @@
-# Copyright 2018-2023 Carnegie Mellon University
+# Copyright 2018-2024 Carnegie Mellon University
 
 import pyactup
 from pyactup import Memory

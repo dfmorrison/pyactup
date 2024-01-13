@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2023 Carnegie Mellon University
+# Copyright (c) 2018-2024 Carnegie Mellon University
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this
 # software and associated documentation files (the "Software"), to deal in the Software
@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.2"
+__version__ = "2.2.1"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)

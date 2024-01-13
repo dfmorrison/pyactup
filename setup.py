@@ -1,4 +1,4 @@
-# Copyright 2018-2022 Carnegie Mellon University
+# Copyright 2018-2024 Carnegie Mellon University
 
 from setuptools import setup
 from pyactup import __version__
