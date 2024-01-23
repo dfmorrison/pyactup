@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath('..'))
 
 # -- project information -----------------------------------------------------
 
-project = 'PyACTUP'
+project = 'PyACTUp'
 author = 'Don Morrison'
 
 # The full version, including alpha/beta/rc tags
