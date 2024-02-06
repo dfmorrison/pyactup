@@ -1,15 +1,12 @@
 PyACTUp version 2.2.1
 *********************
 
-.. toctree::
-   :maxdepth: 3
-   :caption: Contents:
-
 .. note::
     The argument signatures of several common methods were changed in version 2.0. Existing models
     written for earlier versions of PyACTUp will need to be updated, typically by making relatively
     simple syntactic changes to the relevant calls. See :ref:`upgrading` for details.
 
+.. contents::
 
 
 Introduction
