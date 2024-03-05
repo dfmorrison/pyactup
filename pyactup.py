@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.2.2.dev1"
+__version__ = "2.2.2"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -517,8 +517,8 @@ class Memory(dict):
         ratios of various times, the :attr:`mismatch` is sensitive to the actual
         magnitude. Suitable care should be exercised when adjusting it.
 
-        Attempting to set this parameter to a value other than ``None`` or a real number
-        raises a :exc:`ValueError`.
+        Attempting to set this parameter to a value other than ``None`` or a non-negative
+        real number raises a :exc:`ValueError`.
         """
         return self._mismatch
 

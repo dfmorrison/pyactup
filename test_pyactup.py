@@ -123,6 +123,16 @@ def test_parameter_manipulation():
         m.mismatch = True
     with pytest.raises(ValueError):
         m.threshold = True
+    with pytest.raises(ValueError):
+        m = Memory(noise=True)
+    with pytest.raises(ValueError):
+        m = Memory(decay=True)
+    with pytest.raises(ValueError):
+        m = Memory(temperature=True)
+    with pytest.raises(ValueError):
+        m = Memory(mismatch=True)
+    with pytest.raises(ValueError):
+        m = Memory(threshold=True)
 
 def test_time():
     m = Memory()

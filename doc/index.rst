@@ -1,4 +1,4 @@
-PyACTUp version 2.2.1
+PyACTUp version 2.2.2
 *********************
 
 .. note::
@@ -83,7 +83,7 @@ you should have it available.
 The PyACTUp sources are available
 at `https://github.org/dfmorrison/pyactup/ <https://github.org/dfmorrison/pyactup/>`_.
 This document is also available
-at `http://koalemos.psy.cmu.edu/pyactup/ <http://koalemos.psy.cmu.edu/pyactup/>`_.
+at `https://dfmorrison.github.io/pyactup-documentation/ <https://dfmorrison.github.io/pyactup-documentation/>`.
 
 Mailing List
 ============
@@ -572,6 +572,13 @@ The result of running this is
 
 Changes to PyACTUp
 ==================
+
+Changes between versions 2.2.1 and 2.2.2
+----------------------------------------
+
+* Fixed some bugs where defective parameter values were not being reported.
+* The canonical home of the online documentation has now moved.
+
 
 Changes between versions 2.2 and 2.2.1
 --------------------------------------
