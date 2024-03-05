@@ -295,18 +295,33 @@ class Memory(dict):
         assert not self._index and not self._slot_name_index
         self._indexed_attributes = indexed_attributes
 
+    @staticmethod
+    def is_real(x, name, non_negative=True, positive=False, none_allowed=True):
+        if none_allowed and x is None:
+            return
+        if (x is True or x is False
+            or (positive and x <= 0)
+            or (non_negative and x < 0)):
+            if positive:
+                mod = " positive"
+            elif non_negative:
+                mod = " non-negative"
+            else:
+                mod = ""
+            raise ValueError(f"The {name}, {x}, must be{' None or' if none_allowed else ''} a{mod} real number")
+
     @property
     def time(self):
         """This ``Memory``'s current time.
         Time in PyACTUp is a dimensionless quantity, the interpretation of which is at the
-        discretion of the modeler.
+        discretion of the modeler. Attempting to set the ``time`` to anything but a real
+        number raises a :exc:`ValueError`.
         """
         return self._time
 
     @time.setter
     def time(self, value):
-        if not isinstance(value, Real):
-            raise ValueError(f"Time {value} is not a real number")
+        Memory.is_real(value, "time", False, False, False)
         self._time = value
         if value != self._time:
             self._clear_fixed_noise()
@@ -322,6 +337,7 @@ class Memory(dict):
             chunks were created or reinforced will result in infinite or complex valued
             base-level activations and raise an :exc:`Exception`.
         """
+        Memory.is_real(amount, "time increment", False)
         if amount is not None:
             self.time += amount
         return self._time
@@ -381,8 +397,9 @@ class Memory(dict):
 
     @noise.setter
     def noise(self, value):
-        if value < 0:
-            raise ValueError(f"The noise, {value}, must not be negative")
+        Memory.is_real(value, "noise")
+        if value is None:
+            value = 0
         if self._temperature_param is None:
             t = Memory._validate_temperature(None, value)
             if not t:
@@ -391,7 +408,7 @@ class Memory(dict):
             else:
                 self._temperature = t
         if value != self._noise:
-            self._noise = value
+            self._noise = float(value)
             self._clear_fixed_noise()
 
     @property
@@ -411,12 +428,13 @@ class Memory(dict):
 
     @decay.setter
     def decay(self, value):
+        Memory.is_real(value, "decay")
         if value is not None:
-            if value < 0:
-                raise ValueError(f"The decay, {value}, must not be negative")
             if value >= 1 and self._optimized_learning is not None:
                 raise ValueError(f"The decay, {value}, must be less than one if optimized_learning is used")
-        self._decay = value
+            self._decay = float(value)
+        else:
+            self._decay = None
 
     @property
     def temperature(self):
@@ -435,6 +453,7 @@ class Memory(dict):
         if value is None or value is False:
             value = None
         else:
+            Memory.is_real(value, "temperature", True, True)
             value = float(value)
         t = Memory._validate_temperature(value, self._noise)
         if not t:
@@ -474,7 +493,8 @@ class Memory(dict):
 
     @threshold.setter
     def threshold(self, value):
-        if value is None or value is False:
+        Memory.is_real(value, "threshold", False)
+        if value is None:
             self._threshold = None
         else:
             self._threshold = float(value)
@@ -504,10 +524,11 @@ class Memory(dict):
 
     @mismatch.setter
     def mismatch(self, value):
-        if value is None or value is False:
+        if value is False:
+            value = None
+        Memory.is_real(value, "mismatch")
+        if value is None:
             self._mismatch = None
-        elif value < 0:
-            raise ValueError(f"The mismatch penalty, {value}, must not be negative")
         else:
             self._mismatch = float(value)
 

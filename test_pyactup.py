@@ -112,6 +112,17 @@ def test_parameter_manipulation():
     m.use_actr_similarity = "yup"
     assert m.use_actr_similarity is True
     assert Memory(use_actr_similarity=1).use_actr_similarity is True
+    m = Memory()
+    with pytest.raises(ValueError):
+        m.noise = True
+    with pytest.raises(ValueError):
+        m.decay = True
+    with pytest.raises(ValueError):
+        m.temperature = True
+    with pytest.raises(ValueError):
+        m.mismatch = True
+    with pytest.raises(ValueError):
+        m.threshold = True
 
 def test_time():
     m = Memory()
