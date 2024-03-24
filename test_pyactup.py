@@ -581,6 +581,29 @@ def test_activation_history():
     assert isclose(m.activation_history[3]["similarities"]["x"], -0.65)
     assert isclose(m.activation_history[3]["similarities"]["y"], -0.15)
 
+def test_noise_distribution():
+    m = Memory(temperature=1, noise=0)
+    assert m.noise_distribution is None
+    m.learn({"x": 4, "y": 17})
+    m.advance(10)
+    m.activation_history = True
+    m.retrieve({"x": 4})
+    assert isclose(m.activation_history[0]["activation"], -1.1512925464970227)
+    m.noise_distribution = lambda: -2
+    assert m.noise_distribution is not None
+    m.activation_history = True
+    m.retrieve({"x": 4})
+    assert isclose(m.activation_history[0]["activation"], -1.1512925464970227)
+    m.noise = 0.25
+    m.activation_history = True
+    m.retrieve({"x": 4})
+    assert isclose(m.activation_history[0]["activation"], -1.1512925464970227 - 0.5)
+    m.noise = 0.5
+    m.activation_history = True
+    m.retrieve({"x": 4})
+    assert isclose(m.activation_history[0]["activation"], -1.1512925464970227 - 1)
+    m.noise_distribution = None
+    assert m.noise_distribution is None
 
 def test_blend():
     for m in [Memory(temperature=1, noise=0),

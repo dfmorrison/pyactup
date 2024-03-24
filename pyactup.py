@@ -37,7 +37,7 @@ may be strictly algorithmic, may interact with human subjects, or may be embedde
 sites.
 """
 
-__version__ = "2.2.2"
+__version__ = "2.2.3"
 
 if "dev" in __version__:
     print("PyACTUp version", __version__)
@@ -135,6 +135,7 @@ class Memory(dict):
         self._fixed_noise_time = None
         self._temperature_param = 1 # will be reset below, but is needed for noise assignment
         self._noise = None
+        self._noise_distribution = None
         self._decay = None
         self._optimized_learning = None
         self._use_actr_similarity = False
@@ -410,6 +411,31 @@ class Memory(dict):
         if value != self._noise:
             self._noise = float(value)
             self._clear_fixed_noise()
+
+    @property
+    def noise_distribution(self):
+        """ Provide an alternative distribution from which noise is sampled.
+        If ``None`` the default logistic distribution is used. Otherwise the value of this
+        attribute should be a callable that takes no arguments and returns a real number.
+        It will be called once each time activation noise is required and the value,
+        scaled as usual by the :attr:`noise` parameter, will be used as the activation
+        noise. A :exc:`ValueError` is raised if an attempt is made to set this attribute
+        to anything other than a callable or ``None``.
+
+        .. warning::
+            It is rarely appropriate to use ``noise_distribution``. The default logistic
+            distribution is almost always a more appropriate choice. The ability to change
+            the distribution is provided only for esoteric purposes, and care should be
+            exercised lest biologically implausible models result.
+        """
+        return self._noise_distribution
+
+    @noise_distribution.setter
+    def noise_distribution(self, value):
+        if value is None or callable(value):
+            self._noise_distribution = value
+        else:
+            raise ValueError(f"The provided noise_distribution, {value}, is neither Callable nor None")
 
     @property
     def decay(self):
@@ -1010,7 +1036,12 @@ class Memory(dict):
                                                          "references": c.references,
                                                          "base_level_activation": r})
                 if self._noise:
-                    noise = self._rng.logistic(scale=self._noise, size=nchunks)
+                    if self._noise_distribution is not None:
+                        noise = self._noise * np.array([self._noise_distribution()
+                                                        for i in range(nchunks)],
+                                                       dtype=np.float64)
+                    else:
+                        noise = self._rng.logistic(scale=self._noise, size=nchunks)
                     if self._fixed_noise is not None:
                         if self._fixed_noise_time != self._time:
                             self._clear_fixed_noise()

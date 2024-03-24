@@ -1,4 +1,4 @@
-PyACTUp version 2.2.2
+PyACTUp version 2.2.3
 *********************
 
 .. note::
@@ -311,6 +311,8 @@ API Reference
    .. autoattribute:: current_time
 
    .. autoattribute:: fixed_noise
+
+   .. autoattribute:: noise_distribution
 
    .. autoattribute:: use_actr_similarity
 
