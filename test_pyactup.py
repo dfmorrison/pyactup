@@ -604,6 +604,8 @@ def test_noise_distribution():
     assert isclose(m.activation_history[0]["activation"], -1.1512925464970227 - 1)
     m.noise_distribution = None
     assert m.noise_distribution is None
+    with pytest.raises(ValueError):
+        m.noise_distribution = ""
 
 def test_blend():
     for m in [Memory(temperature=1, noise=0),
